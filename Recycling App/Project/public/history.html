@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History - Recycling Assistant</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h3 class="sidebar-title">Recycling Assistant</h3>
+            </div>
+            <ul class="nav-links">
+                <li>
+                    <a href="dashboard.html">
+                        <i class="fas fa-home"></i>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="scan.html">
+                        <i class="fas fa-camera"></i>
+                        <span class="nav-text">Scan Items</span>
+                    </a>
+                </li>
+                <li class="active">
+                    <a href="history.html">
+                        <i class="fas fa-history"></i>
+                        <span class="nav-text">History</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="tips.html">
+                        <i class="fas fa-lightbulb"></i>
+                        <span class="nav-text">Tips</span>
+                    </a>
+                </li>
+            </ul>
+            <div class="sidebar-footer">
+                <button id="logoutBtn" class="btn-logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span class="nav-text">Logout</span>
+                </button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <header class="dashboard-header">
+                <h1>Scan History</h1>
+                <div class="user-profile">
+                    <span id="userEmail"></span>
+                </div>
+            </header>
+
+            <div class="content-grid">
+                <!-- Filter controls card -->
+                <div class="card filter-card">
+                    <div class="filter-controls">
+                        <h2 style="margin: 0; font-size: 1.2em; font-weight: 600; color: #333;">Recycled Items</h2>
+                    </div>
+                </div>
+
+                <!-- History grid card -->
+                <div class="card history-grid" id="historyGrid">
+                    <!-- Images will be populated here dynamically -->
+                </div>
+            </div>
+        </main>
+    </div>
+    
+
+    <!-- Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-auth-compat.js"></script>
+    <script type="module" src="js/shistory.js"></script>
+</body>
+</html>
