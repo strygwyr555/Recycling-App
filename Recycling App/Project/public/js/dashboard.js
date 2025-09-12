@@ -51,13 +51,18 @@ document.addEventListener('DOMContentLoaded', function() {
 import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 const db = getFirestore(app);
 
+
 async function displayItemsRecycled() {
   try {
     const scansCol = collection(db, 'scans');
     const scanSnapshot = await getDocs(scansCol);
-    const totalImages = scanSnapshot.docs.length;
+    // Get current user
+    const user = auth.currentUser;
+    const userEmail = user ? user.email : null;
+    // Filter scans by user email
+    const userImages = scanSnapshot.docs.filter(doc => doc.data().email === userEmail).length;
     const itemsRecycled = document.getElementById('itemsRecycled');
-    if (itemsRecycled) itemsRecycled.textContent = totalImages;
+    if (itemsRecycled) itemsRecycled.textContent = userImages;
   } catch (error) {
     console.error('Error fetching recycled items:', error);
   }
