@@ -1,5 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js';
 import { getFirestore, collection, addDoc } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js';
+import { getAuth } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -14,6 +15,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
 class CameraHandler {
     constructor() {
@@ -78,11 +80,15 @@ class CameraHandler {
             this.showPopup('Image upload to Cloudinary failed.');
             return;
         }
+        // Get current user email
+        const user = auth.currentUser;
+        const userEmail = user ? user.email : null;
         if (cloudinaryUrl) {
             try {
                 await addDoc(collection(db, 'scans'), {
                     imageUrl: cloudinaryUrl,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    email: userEmail
                 });
                 this.showPopup('Image saved successfully!');
                 // Show classification display section with placeholder
