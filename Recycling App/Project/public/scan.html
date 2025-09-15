@@ -100,10 +100,6 @@
                 </div>
 
                 <div class="camera-controls">
-                    <button id="startCamera" class="btn-primary">
-                        <i class="fas fa-camera"></i>
-                        <span class="btn-text">Start Camera</span>
-                    </button>
                     <button id="capturePhoto" class="btn-primary" style="display:none;">
                         <i class="fas fa-camera"></i>
                         <span class="btn-text">Capture</span>
@@ -115,6 +111,12 @@
                     <button id="classifyButton" class="btn-primary" style="display:none;">
                         <i class="fas fa-search"></i>
                         <span class="btn-text">Classify</span>
+                    </button>
+                    <!-- Upload from PC controls -->
+                    <input type="file" id="uploadFileInput" accept="image/*" style="display:none;">
+                    <button id="uploadFileButton" class="btn-primary">
+                        <i class="fas fa-upload"></i>
+                        <span class="btn-text">Upload from PC</span>
                     </button>
                     <div id="confidenceMeter" style="display:none;">
                         <div class="confidence-bar">

@@ -23,20 +23,54 @@ class CameraHandler {
         this.video = document.getElementById('cameraFeed');
         this.canvas = document.getElementById('photoCanvas');
         this.capturedImage = document.getElementById('capturedImage');
-        this.startButton = document.getElementById('startCamera');
         this.captureButton = document.getElementById('capturePhoto');
         this.retakeButton = document.getElementById('retakePhoto');
         this.classifyButton = document.getElementById('classifyButton');
+        // File upload elements
+        this.uploadFileInput = document.getElementById('uploadFileInput');
+        this.uploadFileButton = document.getElementById('uploadFileButton');
+        this.uploadedFile = null;
         // Initialize canvas dimensions
         this.canvas.width = 640;
         this.canvas.height = 480;
     }
 
     async initialize() {
-        this.startButton.addEventListener('click', () => this.startCamera());
+        // Start camera automatically and show both buttons
+        await this.startCamera();
+        if (this.captureButton) {
+            this.captureButton.style.display = 'block';
+        }
+        if (this.uploadFileButton) {
+            this.uploadFileButton.style.display = 'block';
+        }
         this.captureButton.addEventListener('click', () => this.captureImage());
-        this.retakeButton.addEventListener('click', () => this.retakePhoto());
+        this.retakeButton.addEventListener('click', () => {
+            this.retakePhoto();
+            if (this.uploadFileButton) {
+                this.uploadFileButton.style.display = 'block';
+            }
+            if (this.captureButton) {
+                this.captureButton.style.display = 'block';
+            }
+        });
         this.classifyButton.addEventListener('click', () => this.saveImageToFirestore());
+        // File upload events
+        if (this.uploadFileButton && this.uploadFileInput) {
+            this.uploadFileButton.addEventListener('click', () => {
+                this.uploadFileInput.value = null; // Reset file input so 'change' always fires
+                this.uploadFileInput.click();
+                // Do NOT hide capture/upload buttons yet
+            });
+            this.uploadFileInput.addEventListener('change', (e) => {
+                this.handleFileUpload(e);
+                // If no file selected, restore buttons immediately
+                if (!e.target.files || !e.target.files.length) {
+                    if (this.captureButton) this.captureButton.style.display = 'block';
+                    if (this.uploadFileButton) this.uploadFileButton.style.display = 'block';
+                }
+            });
+        }
     }
 
     async startCamera() {
@@ -56,8 +90,10 @@ class CameraHandler {
         await new Promise((resolve) => {
             this.video.onloadedmetadata = resolve;
         });
-        this.startButton.style.display = 'none';
-        this.captureButton.style.display = 'block';
+        // Only show capture button, no reference to startButton
+        if (this.captureButton) {
+            this.captureButton.style.display = 'block';
+        }
     }
 
     captureImage() {
@@ -66,7 +102,9 @@ class CameraHandler {
         this.capturedImage.src = this.canvas.toDataURL('image/jpeg');
         this.capturedImage.style.display = 'block';
         this.video.style.display = 'none';
+        // Only show retake and classify buttons
         this.captureButton.style.display = 'none';
+        if (this.uploadFileButton) this.uploadFileButton.style.display = 'none';
         this.retakeButton.style.display = 'block';
         this.classifyButton.style.display = 'block';
     }
@@ -75,7 +113,11 @@ class CameraHandler {
         this.classifyButton.disabled = true;
         let cloudinaryUrl = null;
         try {
-            cloudinaryUrl = await this.uploadToCloudinary();
+            if (this.uploadedFile) {
+                cloudinaryUrl = await this.uploadFileToCloudinary(this.uploadedFile);
+            } else {
+                cloudinaryUrl = await this.uploadToCloudinary();
+            }
         } catch (err) {
             this.showPopup('Image upload to Cloudinary failed.');
             return;
@@ -98,11 +140,62 @@ class CameraHandler {
                     classificationDisplay.style.display = 'block';
                     classificationInfo.textContent = 'No classification available.';
                 }
+                // Reset uploaded file after save
+                this.uploadedFile = null;
             } catch (err) {
                 this.showPopup('Could not save image to Firestore.');
             }
         } else {
             this.showPopup('No image URL returned from Cloudinary.');
+        }
+    }
+
+    handleFileUpload(e) {
+        const file = e.target.files[0];
+        if (file) {
+            this.uploadedFile = file;
+            // Preview the image
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                this.capturedImage.src = event.target.result;
+                this.capturedImage.style.display = 'block';
+                this.video.style.display = 'none';
+                // Only show retake and classify buttons AFTER preview
+                if (this.captureButton) this.captureButton.style.display = 'none';
+                if (this.uploadFileButton) this.uploadFileButton.style.display = 'none';
+                this.retakeButton.style.display = 'block';
+                this.classifyButton.style.display = 'block';
+                // Hide classification results section
+                const classificationDisplay = document.getElementById('classificationDisplay');
+                if (classificationDisplay) classificationDisplay.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            // If no file selected (cancelled), restore capture and upload buttons
+            if (this.captureButton) this.captureButton.style.display = 'block';
+            if (this.uploadFileButton) this.uploadFileButton.style.display = 'block';
+        }
+    }
+
+    async uploadFileToCloudinary(file) {
+        const cloudName = 'dtmpkhm3z';
+        const uploadPreset = 'recycleApp';
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', uploadPreset);
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (data.secure_url) {
+                return data.secure_url;
+            } else {
+                return null;
+            }
+        } catch (error) {
+            return null;
         }
     }
 
@@ -112,7 +205,16 @@ class CameraHandler {
         this.retakeButton.style.display = 'none';
         this.classifyButton.style.display = 'none';
         this.classifyButton.disabled = false;
+        // Also clear any event listeners or states that might keep classify visible
+        setTimeout(() => {
+            this.classifyButton.style.display = 'none';
+        }, 0);
+            // Hide classification results section
+            const classificationDisplay = document.getElementById('classificationDisplay');
+            if (classificationDisplay) classificationDisplay.style.display = 'none';
+            // Show capture and upload buttons again
         this.captureButton.style.display = 'block';
+        if (this.uploadFileButton) this.uploadFileButton.style.display = 'block';
     }
 
     async uploadToCloudinary() {
