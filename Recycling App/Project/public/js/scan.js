@@ -17,6 +17,20 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
+async function askChatGPTAboutImage(imageUrl) {
+    try {
+        const response = await fetch('http://localhost:3001/api/chatgpt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageUrl })
+        });
+        const data = await response.json();
+        return data.choices[0].message.content;
+    } catch (error) {
+        return 'Could not get identification from ChatGPT.';
+    }
+}
+
 class CameraHandler {
     constructor() {
         this.stream = null;
@@ -91,12 +105,15 @@ class CameraHandler {
                     email: userEmail
                 });
                 this.showPopup('Image saved successfully!');
-                // Show classification display section with placeholder
+                // Show classification display section with ChatGPT result
                 const classificationDisplay = document.getElementById('classificationDisplay');
                 const classificationInfo = document.getElementById('classificationInfo');
                 if (classificationDisplay && classificationInfo) {
                     classificationDisplay.style.display = 'block';
-                    classificationInfo.textContent = 'No classification available.';
+                    classificationInfo.textContent = 'Identifying item...';
+                    // Call backend proxy for ChatGPT identification
+                    const chatGptResult = await askChatGPTAboutImage(cloudinaryUrl);
+                    classificationInfo.textContent = chatGptResult;
                 }
             } catch (err) {
                 this.showPopup('Could not save image to Firestore.');
