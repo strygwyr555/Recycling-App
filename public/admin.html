@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard - Recycling AI Assistant</title>
+  <link rel="stylesheet" href="css/admin.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<body>
+  <div class="dashboard-container">
+    <header>
+      <h1>Your Recycling Center Admin Dashboard</h1>
+      <nav>
+        <a href="./login.html">Logout</a>
+      </nav>
+    </header>
+    <main>
+      <section class="dashboard-section" id="map-section">
+        <h2>Center & Trashcan Map</h2>
+        <div id="map" style="height: 400px;"></div>
+      </section>
+      <section class="dashboard-section" id="stats-section">
+        <h2>Trashcan Statistics</h2>
+        <canvas id="trashStatsChart"></canvas>
+      </section>
+      <section class="dashboard-section" id="routes-section">
+        <h2>Route Mapping</h2>
+        <div id="routes"></div>
+      </section>
+      <section class="dashboard-section" id="center-info-section">
+        <h2>Center Information</h2>
+        <div id="centerInfo"></div>
+      </section>
+    </main>
+  </div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login - Recycling AI Assistant</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <h2>Login to Your Recycling Assistant</h2>
+      <p class="recycling-tip">Join us in making the world cleaner, one item at a time!</p>
+      <form id="loginForm" class="login-form">
+        <div class="form-group">
+          <input type="email" id="email" placeholder="Email" required>
+        </div>
+        <div class="form-group">
+          <input type="password" id="password" placeholder="Password" required>
+        </div>
+        <button type="submit" class="btn-primary">Login</button>
+        <button id="adminLoginBtn" class="btn-secondary" style="margin-top: 1em;">Admin Login</button>
+      </form>
+      <div class="form-footer">
+        <p>Don't have an account? <a href="./signup.html">Sign up</a> to start your recycling journey!</p>
+        <a href="./index.html" class="back-link">Back to Home</a>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="js/login.js"></script>
+  <script>
+    document.getElementById('adminLoginBtn').onclick = function() {
+      window.location.href = './admin-login.html';
+    };
+  </script>
+</body>
+</html>
