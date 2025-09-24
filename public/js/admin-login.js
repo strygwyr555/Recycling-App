@@ -3,7 +3,7 @@ document.getElementById('adminLoginForm').addEventListener('submit', async funct
   const email = document.getElementById('adminEmail').value;
   const password = document.getElementById('adminPassword').value;
   // TODO: Replace with real admin authentication logic
-  if (email === 'damipop@gmail.com' && password === '771240') {
+  if (email === 'damipop7@gmail.com' && password === '771240') {
     // Example: fetch center name from backend or localStorage
     localStorage.setItem('centerName', 'Green Recycling Center'); // Replace with dynamic value
     window.location.href = './admin.html';
