@@ -30,6 +30,21 @@ h1, h2 {
   margin-bottom: 15px;
 }
 
+.forgot-link {
+  display: block;
+  margin-top: 10px;
+  font-size: 0.9rem;
+  color: #3498db;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.forgot-link:hover {
+  color: #1d6fa5;
+  text-decoration: underline;
+}
+
+
 input {
   width: 100%;
   padding: 10px;

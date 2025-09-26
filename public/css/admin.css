@@ -30,3 +30,20 @@ header {
   height: 400px;
   margin-bottom: 1em;
 }
+
+/* Admin buttons on homepage/navbar */
+.btn-admin {
+    background-color: #f39c12; /* orange for admins */
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: bold;
+    margin-left: 10px;
+    transition: background 0.3s, transform 0.2s;
+}
+
+.btn-admin:hover {
+    background-color: #e67e22;
+    transform: scale(1.05);
+}

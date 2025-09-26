@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js';
 import { getFirestore, collection, addDoc } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js';
-import { getAuth } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
+import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -256,4 +256,22 @@ class CameraHandler {
 document.addEventListener('DOMContentLoaded', async () => {
     const cameraHandler = new CameraHandler();
     await cameraHandler.initialize();
+});
+
+// Handle logout
+document.addEventListener('DOMContentLoaded', function() {
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                window.location.href = "login.html";
+            } catch (error) {
+                console.error('Error signing out:', error);
+            }
+        });
+    }
+
+  // Display total items recycled from Firestore
+  displayItemsRecycled();
 });
