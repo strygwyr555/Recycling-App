@@ -7,57 +7,16 @@
     <title>Scan - Recycling Assistant</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
 </head>
 
 <body>
     <div class="dashboard-container">
         <!-- Sidebar Navigation -->
-        <nav class="sidebar">
-            <div class="sidebar-header">
-                <h3 class="sidebar-title">Recycling Assistant</h3>
-            </div>
-            <ul class="nav-links">
-                <li>
-                    <a href="dashboard.html">
-                        <i class="fas fa-home"></i>
-                        <span class="nav-text">Dashboard</span>
-                    </a>
-                </li>
-                <li class="active">
-                    <a href="scan.html">
-                        <i class="fas fa-camera"></i>
-                        <span class="nav-text">Scan Items</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="history.html">
-                        <i class="fas fa-history"></i>
-                        <span class="nav-text">History</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="tips.html">
-                        <i class="fas fa-lightbulb"></i>
-                        <span class="nav-text">Tips</span>
-                    </a>
-                </li>
-            </ul>
-            <div class="sidebar-footer">
-                <button id="logoutBtn" class="btn-logout">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span class="nav-text">Logout</span>
-                </button>
-            </div>
-        </nav>
+        <div id="sidebar"></div>
 
         <main class="main-content">
             <header class="dashboard-header">
                 <h1>Scan Items</h1>
-                <p class="scan-description">Position the item within the frame to identify how to recycle it</p>
-                <div class="user-profile">
-                    <span id="userEmail"></span>
-                </div>
             </header>
 
             <div class="camera-section card">
@@ -69,16 +28,13 @@
                     </div>
                     <canvas id="photoCanvas" style="display:none;"></canvas>
                     <img id="capturedImage" style="display:none;">
-
                     <div class="loading-indicator" style="display:none;">
                         <div class="spinner"></div>
                         <p>Starting camera...</p>
                     </div>
-
                     <div id="cameraError" class="error-message" style="display:none;">
                         <p></p>
                     </div>
-
                     <div id="result" class="result-container" style="display:none;">
                         <h3>Scan Result</h3>
                         <div id="classificationResult" class="prediction-result"></div>
@@ -112,7 +68,6 @@
                         <i class="fas fa-search"></i>
                         <span class="btn-text">Classify</span>
                     </button>
-                    <!-- Upload from PC controls -->
                     <input type="file" id="uploadFileInput" accept="image/*" style="display:none;">
                     <button id="uploadFileButton" class="btn-primary">
                         <i class="fas fa-upload"></i>
@@ -126,28 +81,48 @@
                     </div>
                 </div>
 
-                <!-- Classification Display Section -->
-                <div class="classification-display card" id="classificationDisplay" style="display:none; margin-top:2rem;">
+                <div class="classification-display card" id="classificationDisplay"
+                    style="display:none; margin-top:2rem;">
                     <h3>Classification Result</h3>
-                    <div id="classificationInfo">
-                        <!-- Classification info will be populated here by JS after Classify is pressed -->
-                    </div>
+                    <div id="classificationInfo"></div>
                 </div>
-
-
             </div>
         </main>
     </div>
 
-    <!-- Firebase and TensorFlow scripts -->
-    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-storage-compat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <!-- Firebase Init and Logout -->
+    <script type="module">
+        import { app, auth } from './js/firebaseInit.js';
+        import { signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
-    <!-- Application script -->
+        // Load sidebar and attach logout
+        fetch("sidebar.html")
+            .then(res => res.text())
+            .then(data => {
+                document.getElementById("sidebar").innerHTML = data;
+
+                // Display user email
+                const userEmailSpan = document.getElementById("userEmail");
+                auth.onAuthStateChanged(user => {
+                    if (user) userEmailSpan.textContent = user.email;
+                });
+
+                // Attach logout
+                const logoutBtn = document.getElementById("logoutBtn");
+                if (logoutBtn) {
+                    logoutBtn.addEventListener("click", async () => {
+                        try {
+                            await signOut(auth);
+                            window.location.href = "login.html";
+                        } catch (err) {
+                            console.error("Logout failed:", err);
+                        }
+                    });
+                }
+            });
+    </script>
+
+    <!-- Scan app script -->
     <script type="module" src="js/scan.js"></script>
 </body>
 

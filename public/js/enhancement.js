@@ -58,12 +58,12 @@ document.addEventListener('DOMContentLoaded', () => {
     initImpactChart();
     updateAchievements();
     animateNumbers();
-    
+
     // Event listeners for quick action buttons
     document.getElementById('scrollToCameraBtn').addEventListener('click', () => {
         window.location.href = 'scan.html';
     });
-    
+
     document.getElementById('viewHistoryBtn').addEventListener('click', () => {
         window.location.href = 'history.html';
     });

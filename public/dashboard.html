@@ -7,68 +7,29 @@
     <title>Dashboard - Recycling AI Assistant</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <!-- Remove TensorFlow.js scripts -->
-    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-auth-compat.js"></script>
 </head>
 
 <body>
     <div class="dashboard-container">
-        <nav class="sidebar">
-            <div class="sidebar-header">
-                <h3 class="sidebar-title">Recycling Assistant</h3>
-            </div>
-            <ul class="nav-links">
-                <li class="active">
-                    <a href="dashboard.html">
-                        <i class="fas fa-home"></i>
-                        <span class="nav-text">Dashboard</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="scan.html">
-                        <i class="fas fa-camera"></i>
-                        <span class="nav-text">Scan Items</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="history.html">
-                        <i class="fas fa-history"></i>
-                        <span class="nav-text">History</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="tips.html">
-                        <i class="fas fa-lightbulb"></i>
-                        <span class="nav-text">Tips</span>
-                    </a>
-                </li>
-            </ul>
-            <div class="sidebar-footer">
-                <button id="logoutBtn" class="btn-logout">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span class="nav-text">Logout</span>
-                </button>
-            </div>
-        </nav>
+        <div id="sidebar"></div>
 
         <main class="main-content">
             <header class="dashboard-header">
-                <h1>Welcome to the Recycling Community, <span id="userName">User</span> 🌱</h1>
+                <h1>Welcome to the Recycling Community, <span id="firstName"></span> 🌱</h1>
             </header>
 
             <div class="dashboard-grid">
-                <!-- Modified Quick Scan Card -->
+                <!-- Quick Scan Card -->
                 <div class="card scan-card">
                     <h3>Quick Scan</h3>
                     <p>Scan an item to check if it's recyclable</p>
-                    <!-- Changed to a simple link instead of camera activation -->
                     <a href="scan.html" class="btn-primary">
                         <i class="fas fa-camera"></i>
                         Start Scanning
                     </a>
                 </div>
 
+                <!-- Your Impact Card -->
                 <div class="card stats-card">
                     <h3>Your Impact</h3>
                     <div class="stats-grid">
@@ -82,9 +43,7 @@
                 <!-- History Card -->
                 <div class="card history-card">
                     <h3>Recent Scans</h3>
-                    <div class="recent-scans" id="recentScans">
-                        <!-- Will be populated by JavaScript -->
-                    </div>
+                    <div class="recent-scans" id="recentScans"></div>
                     <a href="history.html" class="view-all-link">View All History <i class="fas fa-arrow-right"></i></a>
                 </div>
 
@@ -115,7 +74,7 @@
                     </div>
                 </div>
 
-                <!-- Add to dashboard-grid -->
+                <!-- Environmental Impact Card -->
                 <div class="card impact-card">
                     <h3>Environmental Impact</h3>
                     <div class="impact-stats">
@@ -139,9 +98,65 @@
             </div>
         </main>
     </div>
-    <!-- Remove camera.js script if it exists -->
+
+    <!-- Firebase -->
+    <script type="module" src="js/firebaseInit.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script type="module" src="js/dashboard-enhancements.js"></script>
+
+    <!-- Sidebar + Auth -->
+    <script type="module">
+        import { auth, db } from './js/firebaseInit.js';
+        import { signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
+        import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load sidebar
+            fetch("sidebar.html")
+                .then(res => res.text())
+                .then(data => {
+                    document.getElementById("sidebar").innerHTML = data;
+
+                    // Attach logout
+                    const logoutBtn = document.getElementById("logoutBtn");
+                    if (logoutBtn) {
+                        logoutBtn.addEventListener("click", async () => {
+                            try {
+                                await signOut(auth);
+                                window.location.href = "login.html";
+                            } catch (err) {
+                                console.error("Logout failed:", err);
+                            }
+                        });
+                    }
+                });
+
+            // Listen for user state
+            onAuthStateChanged(auth, async (user) => {
+                const firstNameSpan = document.getElementById('firstName');
+                if (!user) {
+                    window.location.href = "login.html";
+                    return;
+                }
+
+                try {
+                    const userDoc = await getDoc(doc(db, 'users', user.uid));
+                    if (userDoc.exists()) {
+                        const data = userDoc.data();
+                        // Use username from Firestore
+                        firstNameSpan.textContent = data.username || user.email.split("@")[0];
+                    } else {
+                        firstNameSpan.textContent = user.displayName || user.email.split("@")[0];
+                    }
+                } catch (err) {
+                    console.error("Error fetching user data:", err);
+                    firstNameSpan.textContent = user.displayName || user.email.split("@")[0];
+                }
+            });
+        });
+    </script>
+
+    <!-- Dashboard JS -->
+    <script type="module" src="js/enhancements.js"></script>
     <script type="module" src="js/dashboard.js"></script>
 </body>
 

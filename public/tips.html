@@ -1,61 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tips - Recycling Assistant</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-auth-compat.js"></script>
 </head>
+
 <body>
     <div class="dashboard-container">
-        <!-- Consistent navbar -->
-        <nav class="sidebar">
-            <div class="sidebar-header">
-                <h3 class="sidebar-title">Recycling Assistant</h3>
-            </div>
-            <ul class="nav-links">
-                <li>
-                    <a href="dashboard.html">
-                        <i class="fas fa-home"></i>
-                        <span class="nav-text">Dashboard</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="scan.html">
-                        <i class="fas fa-camera"></i>
-                        <span class="nav-text">Scan Items</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="history.html">
-                        <i class="fas fa-history"></i>
-                        <span class="nav-text">History</span>
-                    </a>
-                </li>
-                <li class="active">
-                    <a href="tips.html">
-                        <i class="fas fa-lightbulb"></i>
-                        <span class="nav-text">Tips</span>
-                    </a>
-                </li>
-            </ul>
-            <div class="sidebar-footer">
-                <button id="logoutBtn" class="btn-logout">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span class="nav-text">Logout</span>
-                </button>
-            </div>
-        </nav>
+        <!-- Sidebar placeholder -->
+        <div id="sidebar"></div>
 
         <main class="main-content">
             <header class="dashboard-header">
                 <h1>Recycling Tips</h1>
                 <div class="user-profile">
-                    <span id="userEmail"></span>
-                </div>
             </header>
 
             <div class="content-grid">
@@ -75,7 +37,6 @@
                 <div class="card material-tips">
                     <h2><i class="fas fa-recycle"></i> Material Guide</h2>
                     <div class="material-grid">
-                        <!-- Material items -->
                         <div class="material-item">
                             <i class="fas fa-wine-bottle"></i>
                             <h3>Glass</h3>
@@ -137,6 +98,32 @@
         </main>
     </div>
 
+    <!-- Sidebar fetch and logout -->
+    <script type="module">
+        import { auth } from './js/firebaseInit.js';
+        import { signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+
+        fetch("sidebar.html")
+            .then(res => res.text())
+            .then(data => {
+                document.getElementById("sidebar").innerHTML = data;
+
+                const logoutBtn = document.getElementById("logoutBtn");
+                if (logoutBtn) {
+                    logoutBtn.addEventListener("click", async () => {
+                        try {
+                            await signOut(auth);
+                            window.location.href = "login.html";
+                        } catch (err) {
+                            console.error("Logout failed:", err);
+                        }
+                    });
+                }
+            });
+    </script>
+
+    <!-- Tips JS -->
     <script type="module" src="js/tips.js"></script>
 </body>
+
 </html>

@@ -1,66 +1,34 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+// js/dashboard.js
+import { auth, db } from './firebaseInit.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+import { collection, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyD_bVwKKjEwM4fAnrniDg3y-x6DpbaATL0",
-  authDomain: "recycling-ai-60514.firebaseapp.com",
-  projectId: "recycling-ai-60514",
-  storageBucket: "recycling-ai-60514.firebasestorage.app",
-  messagingSenderId: "116844452229",    
-  appId: "1:116844452229:web:63644296dc46d8c8140cec",
-  measurementId: "G-NFE9GEK0Q6"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-
-// Check authentication state
-onAuthStateChanged(auth, (user) => {
+// Wait for auth state to load
+onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = "login.html";
   } else {
-    // Update user info in dashboard
     const userName = document.getElementById('userName');
     const userEmail = document.getElementById('userEmail');
-    if (userName) userName.textContent = user.displayName || 'User';
+
+    if (userName) userName.textContent = user.displayName || user.email || 'User';
     if (userEmail) userEmail.textContent = user.email;
+
+    // Display total items recycled
+    await displayItemsRecycled(user.email);
+
+    // Display recent scans
+    await displayRecentScans(user.email);
   }
 });
 
-// Handle logout
-document.addEventListener('DOMContentLoaded', function() {
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-            try {
-                await signOut(auth);
-                window.location.href = "login.html";
-            } catch (error) {
-                console.error('Error signing out:', error);
-            }
-        });
-    }
-
-  // Display total items recycled from Firestore
-  displayItemsRecycled();
-});
-
-// Stats handling functions
-
-// Fetch total images from Firestore and display
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
-const db = getFirestore(app);
-
-
-async function displayItemsRecycled() {
+// Display total items recycled for the current user
+async function displayItemsRecycled(email) {
   try {
     const scansCol = collection(db, 'scans');
     const scanSnapshot = await getDocs(scansCol);
-    // Get current user
-    const user = auth.currentUser;
-    const userEmail = user ? user.email : null;
-    // Filter scans by user email
-    const userImages = scanSnapshot.docs.filter(doc => doc.data().email === userEmail).length;
+
+    const userImages = scanSnapshot.docs.filter(doc => doc.data().email === email).length;
     const itemsRecycled = document.getElementById('itemsRecycled');
     if (itemsRecycled) itemsRecycled.textContent = userImages;
   } catch (error) {
@@ -68,10 +36,33 @@ async function displayItemsRecycled() {
   }
 }
 
-window.logout = function () {
-  signOut(auth).then(() => {
-    alert("Logged out.");
-    window.location.href = "login.html";
-  });
-};
+// Display recent scans (last 5)
+async function displayRecentScans(email) {
+  try {
+    const scansCol = collection(db, 'scans');
+    const q = query(scansCol, where('email', '==', email), orderBy('timestamp', 'desc'), limit(5));
+    const scanSnapshot = await getDocs(q);
 
+    const recentScansDiv = document.getElementById('recentScans');
+    if (!recentScansDiv) return;
+
+    recentScansDiv.innerHTML = ''; // Clear existing
+    if (scanSnapshot.empty) {
+      recentScansDiv.innerHTML = '<p>No recent scans.</p>';
+      return;
+    }
+
+    scanSnapshot.forEach(doc => {
+      const data = doc.data();
+      const scanItem = document.createElement('div');
+      scanItem.className = 'recent-scan-item';
+      scanItem.innerHTML = `
+        <img src="${data.imageUrl}" alt="Scan Image">
+        <span>${new Date(data.timestamp).toLocaleString()}</span>
+      `;
+      recentScansDiv.appendChild(scanItem);
+    });
+  } catch (error) {
+    console.error('Error fetching recent scans:', error);
+  }
+}

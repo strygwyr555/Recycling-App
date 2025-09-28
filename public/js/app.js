@@ -6,10 +6,10 @@ document.addEventListener('DOMContentLoaded', () => {
         getStartedBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             getStartedBtn.classList.add('loading');
-            
+
             // Simulate loading state
             await new Promise(resolve => setTimeout(resolve, 800));
-            
+
             window.location.href = './signup.html';
         });
     }
@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (learnMoreBtn) {
         learnMoreBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            
+
             // Smooth scroll to features section
             const featuresSection = document.querySelector('.feature-grid');
             if (featuresSection) {
@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     block: 'start'
                 });
             }
-            
+
             // Add pulse animation to features
             document.querySelectorAll('.feature-card').forEach((card, index) => {
                 setTimeout(() => {

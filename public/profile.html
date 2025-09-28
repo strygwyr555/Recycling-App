@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Profile - Recycling Assistant</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+  <div class="dashboard-container">
+    <!-- Sidebar will be loaded dynamically -->
+    <div id="sidebar"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="dashboard-header">
+        <h1>Your Profile</h1>
+      </header>
+
+      <div class="profile-card card">
+        <h2>Account Information</h2>
+        <p><strong>First Name:</strong> <span id="firstName">Loading...</span></p>
+        <p><strong>Last Name:</strong> <span id="lastName">Loading...</span></p>
+        <p><strong>Username:</strong> <span id="username">Loading...</span></p>
+        <p><strong>Email:</strong> <span id="email">Loading...</span></p>
+
+        <h2>Security</h2>
+        <button id="resetPasswordBtn" class="btn-primary">Reset Password</button>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Load sidebar dynamically and attach logout -->
+  <script type="module">
+    import { auth } from './js/firebaseInit.js';
+    import { signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+
+    fetch("sidebar.html")
+      .then(res => res.text())
+      .then(data => {
+        document.getElementById("sidebar").innerHTML = data;
+
+        const logoutBtn = document.getElementById("logoutBtn");
+        if (logoutBtn) {
+          logoutBtn.addEventListener("click", async () => {
+            try {
+              await signOut(auth);
+              window.location.href = "login.html";
+            } catch (err) {
+              console.error("Logout failed:", err);
+            }
+          });
+        }
+      });
+  </script>
+
+  <!-- Profile logic -->
+  <script type="module" src="js/profile.js"></script>
+</body>
+
+</html>

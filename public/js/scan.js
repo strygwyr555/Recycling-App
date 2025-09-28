@@ -1,21 +1,6 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js';
-import { getFirestore, collection, addDoc } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js';
-import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
-
-// Firebase configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyD_bVwKKjEwM4fAnrniDg3y-x6DpbaATL0",
-    authDomain: "recycling-ai-60514.firebaseapp.com",
-    projectId: "recycling-ai-60514",
-    storageBucket: "recycling-ai-60514.appspot.com",
-    messagingSenderId: "116844452229",
-    appId: "1:116844452229:web:63644296dc46d8c8140cec"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
+// js/scan.js
+import { auth, db } from './firebaseInit.js';
+import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
 class CameraHandler {
     constructor() {
@@ -209,10 +194,10 @@ class CameraHandler {
         setTimeout(() => {
             this.classifyButton.style.display = 'none';
         }, 0);
-            // Hide classification results section
-            const classificationDisplay = document.getElementById('classificationDisplay');
-            if (classificationDisplay) classificationDisplay.style.display = 'none';
-            // Show capture and upload buttons again
+        // Hide classification results section
+        const classificationDisplay = document.getElementById('classificationDisplay');
+        if (classificationDisplay) classificationDisplay.style.display = 'none';
+        // Show capture and upload buttons again
         this.captureButton.style.display = 'block';
         if (this.uploadFileButton) this.uploadFileButton.style.display = 'block';
     }
@@ -256,22 +241,4 @@ class CameraHandler {
 document.addEventListener('DOMContentLoaded', async () => {
     const cameraHandler = new CameraHandler();
     await cameraHandler.initialize();
-});
-
-// Handle logout
-document.addEventListener('DOMContentLoaded', function() {
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-            try {
-                await signOut(auth);
-                window.location.href = "login.html";
-            } catch (error) {
-                console.error('Error signing out:', error);
-            }
-        });
-    }
-
-  // Display total items recycled from Firestore
-  displayItemsRecycled();
 });

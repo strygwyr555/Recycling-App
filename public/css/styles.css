@@ -26,6 +26,15 @@ h1, h2 {
   text-align: center;
 }
 
+.error-message {
+  color: red;
+  font-size: 0.9em;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+
+
 .form-group {
   margin-bottom: 15px;
 }

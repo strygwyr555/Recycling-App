@@ -1,22 +1,10 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
-import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyD_bVwKKjEwM4fAnrniDg3y-x6DpbaATL0",
-  authDomain: "recycling-ai-60514.firebaseapp.com",
-  projectId: "recycling-ai-60514",
-  storageBucket: "recycling-ai-60514.firebasestorage.app",
-  messagingSenderId: "116844452229",
-  appId: "1:116844452229:web:63644296dc46d8c8140cec",
-  measurementId: "G-NFE9GEK0Q6"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+// js/login.js
+import { auth, db } from './firebaseInit.js';
+import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
 const loginForm = document.getElementById('loginForm');
+
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
 
@@ -44,7 +32,6 @@ loginForm.addEventListener('submit', async (e) => {
 
     // Sign in with email + password
     await signInWithEmailAndPassword(auth, emailToUse, password);
-    alert("Login successful!");
     window.location.href = "dashboard.html";
 
   } catch (error) {
