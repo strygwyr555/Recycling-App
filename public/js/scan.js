@@ -134,13 +134,21 @@ class CameraHandler {
             if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
             const data = await res.json();
+
+            // Display results
             const classificationDisplay = document.getElementById('classificationDisplay');
             const classificationInfo = document.getElementById('classificationInfo');
             if (classificationDisplay && classificationInfo) {
                 classificationDisplay.style.display = 'block';
-                classificationInfo.textContent = `${data.predicted_class} (${(data.confidence * 100).toFixed(1)}% confidence)`;
+                classificationInfo.innerHTML = `
+        Detected: ${data.predicted_class} <br>
+        Confidence: ${(data.confidence * 100).toFixed(1)}% <br>
+        Bin: ${data.bin} <br>
+        Suggestion: ${data.suggestion}
+    `;
             }
 
+            // Update confidence bar
             const fill = document.querySelector(".confidence-fill");
             const text = document.querySelector(".confidence-text");
             if (fill && text) {
@@ -157,6 +165,7 @@ class CameraHandler {
             return null;
         }
     }
+
 
     async saveImageToFirestore(classification = null) {
         this.classifyButton.disabled = true;
