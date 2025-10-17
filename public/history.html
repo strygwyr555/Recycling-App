@@ -11,7 +11,7 @@
 
 <body>
     <div class="dashboard-container">
-        <!-- Sidebar placeholder -->
+        <!-- Sidebar -->
         <div id="sidebar"></div>
 
         <main class="main-content">
@@ -20,14 +20,16 @@
             </header>
 
             <div class="content-grid">
+                <!-- Optional filter card -->
                 <div class="card filter-card">
                     <div class="filter-controls">
                         <h2 style="margin: 0; font-size: 1.2em; font-weight: 600; color: #333;">Recycled Items</h2>
                     </div>
                 </div>
 
-                <div class="card history-grid" id="historyGrid">
-                    <!-- Images will be populated here dynamically -->
+                <!-- History grid -->
+                <div class="history-grid" id="historyGrid">
+                    <!-- JS will populate scan cards here -->
                 </div>
             </div>
         </main>
@@ -35,7 +37,7 @@
 
     <!-- Firebase and sidebar -->
     <script type="module">
-        import { auth, db } from './js/firebaseInit.js';
+        import { auth } from './js/firebaseInit.js';
         import { signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
         // Load sidebar

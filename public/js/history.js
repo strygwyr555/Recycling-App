@@ -3,13 +3,19 @@ import { auth, db } from './firebaseInit.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
+function formatDate(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleString(undefined, { 
+        weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', 
+        hour: '2-digit', minute: '2-digit' 
+    });
+}
+
 async function loadHistoryImages(userEmail) {
     const scansCol = collection(db, 'scans');
     const scanSnapshot = await getDocs(scansCol);
     let scanList = scanSnapshot.docs.map(doc => doc.data());
-    // Filter scans by current user's email
     scanList = scanList.filter(scan => scan.email === userEmail);
-    // Sort by timestamp descending
     scanList = scanList.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     const container = document.getElementById('historyGrid');
@@ -20,34 +26,36 @@ async function loadHistoryImages(userEmail) {
         return;
     }
 
-    const columnDiv = document.createElement('div');
-    columnDiv.className = 'history-column';
-
     scanList.forEach(scan => {
         if (scan.imageUrl) {
-            const rowDiv = document.createElement('div');
-            rowDiv.className = 'history-row';
+            const card = document.createElement('div');
+            card.className = 'history-card';
 
             const img = document.createElement('img');
             img.src = scan.imageUrl;
             img.alt = 'Scan Image';
             img.className = 'history-image';
 
-            const infoDiv = document.createElement('div');
-            infoDiv.className = 'classification-info';
-            infoDiv.textContent = 'Classification info will appear here';
+            const info = document.createElement('div');
+            info.className = 'history-info';
 
-            rowDiv.appendChild(img);
-            rowDiv.appendChild(infoDiv);
-            columnDiv.appendChild(rowDiv);
+            const classText = document.createElement('p');
+            classText.innerHTML = `<strong>Classification:</strong> ${scan.classification}`;
+
+            const dateText = document.createElement('p');
+            dateText.innerHTML = `<strong>Scanned On:</strong> ${formatDate(scan.timestamp)}`;
+
+            info.appendChild(classText);
+            info.appendChild(dateText);
+
+            card.appendChild(img);
+            card.appendChild(info);
+            container.appendChild(card);
         }
     });
-
-    container.appendChild(columnDiv);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Check authentication
     onAuthStateChanged(auth, (user) => {
         if (user) {
             loadHistoryImages(user.email);
@@ -56,7 +64,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Attach logout button if exists (from sidebar.html)
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
