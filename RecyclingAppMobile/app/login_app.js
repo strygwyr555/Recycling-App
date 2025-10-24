@@ -6,6 +6,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, Alert, ActivityIndicator 
 import { useNavigation } from "@react-navigation/native";
 import { auth } from "./firebaseInit.js";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LoginScreen({ navigation: navigationProp }) {
   const navigation = navigationProp ?? useNavigation();

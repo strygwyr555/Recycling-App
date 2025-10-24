@@ -1,98 +1,86 @@
-// FILE: js/history.js
-// Populates the #historyGrid with user scan history from localStorage
+import React, { useState, useEffect } from "react";
+import { Platform } from 'react-native';
+import { auth, db } from './firebaseInit';
+import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
 
-// DOM Elements
-const historyGrid = document.getElementById('historyGrid');
-const loadingIndicator = document.querySelector('.loading-indicator');
-const noHistoryMessage = document.getElementById('noHistory');
+const isWeb = Platform.OS === 'web';
 
-// Get current user from localStorage
-function getCurrentUser() {
-  try {
-    return JSON.parse(localStorage.getItem("user"));
-  } catch {
-    return null;
-  }
-}
+export default function HistoryScreen() {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-// Load scans from localStorage
-function loadScans() {
-  try {
-    return JSON.parse(localStorage.getItem('scans')) || [];
-  } catch {
-    return [];
-  }
-}
-
-// Format date for display
-function formatDate(dateString) {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
-
-// Create history card element
-function createHistoryCard(scan) {
-  const card = document.createElement('div');
-  card.className = 'history-card';
-  
-  card.innerHTML = `
-    <div class="card-header">
-      <h3>${scan.itemName.toUpperCase()}</h3>
-      <span class="confidence">${scan.confidence}% confidence</span>
-    </div>
-    <div class="card-body">
-      <p><strong>Bin:</strong> ${scan.binType}</p>
-      <p><strong>Materials:</strong> ${scan.details}</p>
-      <p><strong>Tip:</strong> ${scan.tip}</p>
-      <p class="timestamp"><small>Scanned: ${formatDate(scan.timestamp)}</small></p>
-    </div>
-  `;
-  
-  return card;
-}
-
-// Load and display user's scan history
-async function loadHistory() {
-  const user = getCurrentUser();
-  if (!user) {
-    window.location.href = "login.html";
-    return;
-  }
-
-  try {
-    loadingIndicator.style.display = 'flex';
-    
-    const scans = loadScans()
-      .filter(scan => scan.uid === user.id)
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    
-    if (scans.length === 0) {
-      noHistoryMessage.style.display = 'block';
+  useEffect(() => {
+    // Skip during SSR
+    if (isWeb && typeof window === 'undefined') {
       return;
     }
 
-    // Clear existing content
-    historyGrid.innerHTML = '';
-    
-    // Add history cards
-    scans.forEach(scan => {
-      const card = createHistoryCard(scan);
-      historyGrid.appendChild(card);
+    const loadHistory = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+
+        const scansCol = collection(db, "scans");
+        const q = query(scansCol, 
+          where("uid", "==", user.uid),
+          orderBy("timestamp", "desc")
+        );
+        const snap = await getDocs(q);
+        const historyData = snap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setHistory(historyData);
+      } catch (err) {
+        console.error("Error loading history:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadHistory();
+  }, []);
+
+  // Format date for display
+  function formatDate(dateString) {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
-
-  } catch (error) {
-    console.error('Error loading history:', error);
-    noHistoryMessage.textContent = 'Error loading scan history. Please try again.';
-    noHistoryMessage.style.display = 'block';
-  } finally {
-    loadingIndicator.style.display = 'none';
   }
-}
 
-// Initialize history display
-window.addEventListener('load', loadHistory);
+  // Create history card element
+  function createHistoryCard(scan) {
+    return (
+      <div className="history-card" key={scan.id}>
+        <div className="card-header">
+          <h3>{scan.itemName.toUpperCase()}</h3>
+          <span className="confidence">{scan.confidence}% confidence</span>
+        </div>
+        <div className="card-body">
+          <p><strong>Bin:</strong> {scan.binType}</p>
+          <p><strong>Materials:</strong> {scan.details}</p>
+          <p><strong>Tip:</strong> {scan.tip}</p>
+          <p className="timestamp"><small>Scanned: {formatDate(scan.timestamp)}</small></p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <div className="loading-indicator">Loading...</div>;
+  }
+
+  if (history.length === 0) {
+    return <div id="noHistory">No scan history found.</div>;
+  }
+
+  return (
+    <div id="historyGrid">
+      {history.map(scan => createHistoryCard(scan))}
+    </div>
+  );
+}

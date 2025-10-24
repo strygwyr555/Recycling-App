@@ -2,36 +2,32 @@
 // Main dashboard screen for authenticated users with quick actions and impact tracking
 
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { auth, db } from './firebaseInit.js';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
-// Dashboard guard: require local user (no Firebase)
-function getCurrentUser() {
-  try {
-    return JSON.parse(localStorage.getItem("user"));
-  } catch {
-    return null;
-  }
-}
-
-const user = getCurrentUser();
-if (!user) {
-  window.location.href = "login.html";
-}
+// Add this helper function at the top of the file, outside the component
+const isWeb = Platform.OS === 'web';
 
 export default function DashboardScreen() {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [itemsRecycled, setItemsRecycled] = useState(0);
   const [userName, setUserName] = useState("User");
+  const [user, setUser] = useState(null);
 
   // Check auth state on mount
   useEffect(() => {
+    // Skip auth check on web platform during SSR
+    if (isWeb && typeof window === 'undefined') {
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
+        setUser(currentUser);
         // Load user profile data
         try {
           const userDocRef = doc(db, "users", currentUser.uid);
@@ -217,11 +213,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    ...(Platform.OS === 'web' 
+      ? {
+          boxShadow: '0 2px 3px rgba(0, 0, 0, 0.1)'
+        }
+      : {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 3,
+          elevation: 3,
+        }
+    ),
   },
   cardTitle: {
     fontWeight: "700",
