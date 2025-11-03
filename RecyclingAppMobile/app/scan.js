@@ -1,5 +1,6 @@
 // FILE: app/scan.js
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { addDoc, collection } from "firebase/firestore";
 import { useEffect, useState } from "react";
@@ -18,26 +19,54 @@ export default function ScanScreen() {
 
   const handleScan = async () => {
     if (!cameraRef) return;
-
     try {
       setScanning(true);
       const photo = await cameraRef.takePictureAsync({ quality: 0.7 });
-      const imageUrl = await uploadToCloudinary(photo.uri);
+      await saveToFirestore(photo.uri);
+    } catch (err) {
+      console.error("Camera scan error:", err);
+      alert("Failed to capture scan.");
+    } finally {
+      setScanning(false);
+    }
+  };
 
-      const user = auth.currentUser;
-      if (user && imageUrl) {
-        await addDoc(collection(db, "scans"), {
-          classification: "Unknown", // you can update this after ML API
-          email: user.email,
-          imageUrl,
-          timestamp: new Date().toISOString(),
-        });
+  const handlePickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.7,
+      });
+
+      if (!result.canceled) {
+        await saveToFirestore(result.assets[0].uri);
       }
+    } catch (err) {
+      console.error("Gallery pick error:", err);
+      alert("Failed to pick image.");
+    }
+  };
+
+  const saveToFirestore = async (uri) => {
+    try {
+      setScanning(true);
+      const user = auth.currentUser;
+      if (!user) throw new Error("No user logged in.");
+
+      const imageUrl = await uploadToCloudinary(uri);
+      if (!imageUrl) throw new Error("Image upload failed.");
+
+      await addDoc(collection(db, "scans"), {
+        classification: "biological", // or "Unknown" if you’ll classify later
+        email: user.email,
+        imageUrl: imageUrl,
+        timestamp: new Date().toISOString(),
+      });
 
       alert("Scan saved successfully!");
       router.back();
     } catch (err) {
-      console.error("Scan/upload error:", err);
+      console.error("Firestore save error:", err);
       alert("Failed to save scan.");
     } finally {
       setScanning(false);
@@ -47,27 +76,26 @@ export default function ScanScreen() {
   const uploadToCloudinary = async (uri) => {
     try {
       const base64 = await toBase64(uri);
-      const cloudName = "dtmpkhm3z";
-      const uploadPreset = "recycleApp";
+      const cloudName = "dtmpkhm3z"; // your Cloudinary cloud name
+      const uploadPreset = "recycleApp"; // must exist in your Cloudinary settings
 
       const formData = new FormData();
       formData.append("file", base64);
       formData.append("upload_preset", uploadPreset);
 
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
         method: "POST",
         body: formData,
       });
 
-      const data = await res.json();
+      const data = await response.json();
       return data.secure_url || null;
     } catch (err) {
-      console.error("Cloudinary upload failed:", err);
+      console.error("Cloudinary upload error:", err);
       return null;
     }
   };
 
-  // Convert URI to Base64
   const toBase64 = async (uri) => {
     const response = await fetch(uri);
     const blob = await response.blob();
@@ -108,10 +136,22 @@ export default function ScanScreen() {
             onPress={handleScan}
             disabled={scanning}
           >
-            <Text style={styles.buttonText}>{scanning ? "Scanning..." : "Scan Item"}</Text>
+            <Text style={styles.buttonText}>{scanning ? "Scanning..." : "Capture Scan"}</Text>
           </Pressable>
 
-          <Pressable style={[styles.button, { backgroundColor: "#555" }]} onPress={() => router.back()}>
+          <Pressable
+            style={[styles.button, { backgroundColor: "#555" }]}
+            onPress={handlePickImage}
+            disabled={scanning}
+          >
+            <Text style={styles.buttonText}>Pick From Gallery</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.button, { backgroundColor: "#888" }]}
+            onPress={() => router.back()}
+            disabled={scanning}
+          >
             <Text style={styles.buttonText}>Back</Text>
           </Pressable>
         </View>
@@ -125,7 +165,7 @@ const styles = StyleSheet.create({
   camera: { flex: 1, width: "100%" },
   overlay: { flex: 1, backgroundColor: "transparent", justifyContent: "flex-end", padding: 20 },
   text: { color: "#fff", fontSize: 16, marginBottom: 20, textAlign: "center" },
-  button: { backgroundColor: "#27ae60", paddingVertical: 12, paddingHorizontal: 32, borderRadius: 8, marginBottom: 12 },
+  button: { backgroundColor: "#27ae60", paddingVertical: 12, borderRadius: 8, marginBottom: 12 },
   buttonDisabled: { backgroundColor: "#95a5a6" },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "700", textAlign: "center" },
 });
