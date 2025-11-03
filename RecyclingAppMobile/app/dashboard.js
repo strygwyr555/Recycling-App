@@ -1,108 +1,77 @@
 // FILE: app/dashboard.js
-// Main dashboard screen for authenticated users with quick actions and impact tracking
-
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform } from "react-native";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { auth, db } from './firebaseInit.js';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
-// Add this helper function at the top of the file, outside the component
 const isWeb = Platform.OS === 'web';
 
 export default function DashboardScreen() {
-  const navigation = useNavigation();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [itemsRecycled, setItemsRecycled] = useState(0);
   const [userName, setUserName] = useState("User");
   const [user, setUser] = useState(null);
 
-  // Check auth state on mount
   useEffect(() => {
-    // Skip auth check on web platform during SSR
-    if (isWeb && typeof window === 'undefined') {
-      return;
-    }
+    if (isWeb && typeof window === 'undefined') return;
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        // Load user profile data
-        try {
-          const userDocRef = doc(db, "users", currentUser.uid);
-          const userSnap = await getDoc(userDocRef);
-          if (userSnap.exists()) {
-            const userData = userSnap.data();
-            setUserName(userData.firstName || "User");
-          }
-        } catch (err) {
-          console.error("Error loading profile:", err);
-        }
-
-        // Load scan history count
-        try {
-          const scansCol = collection(db, "scans");
-          const q = query(scansCol, where("uid", "==", currentUser.uid));
-          const snap = await getDocs(q);
-          setItemsRecycled(snap.size);
-        } catch (err) {
-          console.error("Error loading scan history:", err);
-        }
-
-        setLoading(false);
-      } else {
-        // Not logged in - redirect to login
-        navigation.replace("Login");
+      if (!currentUser) {
+        setCheckingAuth(false);
+        router.replace('/login_app'); // redirect if not logged in
+        return;
       }
+
+      setUser(currentUser);
+
+      // Load user profile
+      try {
+        const userDocRef = doc(db, "users", currentUser.uid);
+        const userSnap = await getDoc(userDocRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          setUserName(userData.firstName || "User");
+        }
+      } catch (err) {
+        console.error("Error loading profile:", err);
+      }
+
+      // Load scan history
+      try {
+        const scansCol = collection(db, "scans");
+        const q = query(scansCol, where("uid", "==", currentUser.uid));
+        const snap = await getDocs(q);
+        setItemsRecycled(snap.size);
+      } catch (err) {
+        console.error("Error loading scan history:", err);
+      }
+
+      setLoading(false);
+      setCheckingAuth(false);
     });
 
     return unsubscribe;
-  }, [navigation]);
+  }, []);
 
-  // Refresh data when screen is focused
-  useFocusEffect(
-    React.useCallback(() => {
-      if (user) {
-        // Reload scan count
-        const reloadScans = async () => {
-          try {
-            const scansCol = collection(db, "scans");
-            const q = query(scansCol, where("uid", "==", user.uid));
-            const snap = await getDocs(q);
-            setItemsRecycled(snap.size);
-          } catch (err) {
-            console.error("Error reloading scan history:", err);
-          }
-        };
-        reloadScans();
-      }
-    }, [user])
-  );
-
-  const handleStartScanning = () => {
-    navigation.navigate("Scanner");
-  };
-
-  const handleViewHistory = () => {
-    navigation.navigate("History");
-  };
-
-  const handleViewProfile = () => {
-    navigation.navigate("Profile");
-  };
+  const handleStartScanning = () => router.push('/scan');
+  const handleViewHistory = () => router.push('/history');
+  const handleViewProfile = () => router.push('/profile');
 
   const handleLogOut = async () => {
     try {
       await signOut(auth);
-      navigation.replace("Login");
+      router.replace('/login_app');
     } catch (err) {
       console.error("Error logging out:", err);
       alert("Failed to log out. Please try again.");
     }
   };
 
-  if (loading) {
+  if (checkingAuth || loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#27ae60" />
@@ -119,7 +88,7 @@ export default function DashboardScreen() {
         <Text style={styles.tagline}>Making the world cleaner, one scan at a time</Text>
       </View>
 
-      {/* Quick Scan Card */}
+      {/* Quick Scan */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>📸 Quick Scan</Text>
         <Text style={styles.cardDescription}>Scan an item to check if it's recyclable and get disposal tips.</Text>
@@ -128,7 +97,7 @@ export default function DashboardScreen() {
         </Pressable>
       </View>
 
-      {/* Impact Card */}
+      {/* Impact */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>♻️ Your Impact</Text>
         <View style={styles.impactStats}>
@@ -146,7 +115,7 @@ export default function DashboardScreen() {
         </Pressable>
       </View>
 
-      {/* Daily Tip Card */}
+      {/* Daily Tip */}
       <View style={[styles.card, { backgroundColor: "#e8f8f5" }]}>
         <Text style={styles.cardTitle}>💡 Daily Eco Tip</Text>
         <Text style={styles.tipText}>
@@ -154,7 +123,7 @@ export default function DashboardScreen() {
         </Text>
       </View>
 
-      {/* Profile Card */}
+      {/* Profile */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>👤 Profile</Text>
         <Text style={styles.cardDescription}>View and manage your account information and preferences.</Text>
@@ -163,128 +132,42 @@ export default function DashboardScreen() {
         </Pressable>
       </View>
 
-      {/* Log Out Button */}
-      <Pressable
-        style={[styles.button, styles.logoutButton]}
-        onPress={handleLogOut}
-      >
+      {/* Log Out */}
+      <Pressable style={[styles.button, styles.logoutButton]} onPress={handleLogOut}>
         <Text style={styles.buttonText}>Log Out</Text>
       </Pressable>
 
-      {/* Footer */}
       <Text style={styles.footer}>v1.0.0 • RecycleAI Assistant</Text>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    backgroundColor: "#f5f5f5",
-    paddingBottom: 30,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#666",
-  },
-  header: {
-    marginBottom: 24,
-    paddingVertical: 12,
-  },
-  greeting: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#2c3e50",
-    marginBottom: 4,
-  },
-  tagline: {
-    fontSize: 14,
-    color: "#7f8c8d",
-  },
+  container: { padding: 16, backgroundColor: "#f5f5f5", paddingBottom: 30 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f5f5f5" },
+  loadingText: { marginTop: 12, fontSize: 16, color: "#666" },
+  header: { marginBottom: 24, paddingVertical: 12 },
+  greeting: { fontSize: 24, fontWeight: "700", color: "#2c3e50", marginBottom: 4 },
+  tagline: { fontSize: 14, color: "#7f8c8d" },
   card: {
     backgroundColor: "white",
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    ...(Platform.OS === 'web' 
-      ? {
-          boxShadow: '0 2px 3px rgba(0, 0, 0, 0.1)'
-        }
-      : {
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 3,
-          elevation: 3,
-        }
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0 2px 3px rgba(0,0,0,0.1)' }
+      : { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 3 }
     ),
   },
-  cardTitle: {
-    fontWeight: "700",
-    fontSize: 18,
-    color: "#2c3e50",
-    marginBottom: 8,
-  },
-  cardDescription: {
-    fontSize: 14,
-    color: "#555",
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  tipText: {
-    fontSize: 14,
-    color: "#27ae60",
-    lineHeight: 20,
-    fontWeight: "500",
-  },
-  impactStats: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 12,
-  },
-  statBox: {
-    alignItems: "center",
-    flex: 1,
-  },
-  statNumber: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#27ae60",
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#7f8c8d",
-    textAlign: "center",
-  },
-  button: {
-    backgroundColor: "#27ae60",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  buttonText: {
-    color: "white",
-    fontWeight: "700",
-    textAlign: "center",
-    fontSize: 16,
-  },
-  logoutButton: {
-    backgroundColor: "#e74c3c",
-    marginTop: 20,
-  },
-  footer: {
-    textAlign: "center",
-    color: "#95a5a6",
-    fontSize: 12,
-    marginTop: 20,
-  },
+  cardTitle: { fontWeight: "700", fontSize: 18, color: "#2c3e50", marginBottom: 8 },
+  cardDescription: { fontSize: 14, color: "#555", marginBottom: 12, lineHeight: 20 },
+  tipText: { fontSize: 14, color: "#27ae60", lineHeight: 20, fontWeight: "500" },
+  impactStats: { flexDirection: "row", justifyContent: "space-around", marginBottom: 12 },
+  statBox: { alignItems: "center", flex: 1 },
+  statNumber: { fontSize: 28, fontWeight: "700", color: "#27ae60", marginBottom: 4 },
+  statLabel: { fontSize: 12, color: "#7f8c8d", textAlign: "center" },
+  button: { backgroundColor: "#27ae60", paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8, marginTop: 10 },
+  buttonText: { color: "white", fontWeight: "700", textAlign: "center", fontSize: 16 },
+  logoutButton: { backgroundColor: "#e74c3c", marginTop: 20 },
+  footer: { textAlign: "center", color: "#95a5a6", fontSize: 12, marginTop: 20 },
 });
