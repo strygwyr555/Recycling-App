@@ -23,5 +23,5 @@ const storage = getStorage(app);
 // Add default export of the initialized app
 export default app;
 // Also export auth and db for use in other files
-export { auth, db };
+export { auth, db, storage };
 

@@ -15,6 +15,11 @@ export default function DashboardScreen() {
   const [itemsRecycled, setItemsRecycled] = useState(0);
   const [userName, setUserName] = useState("User");
   const [user, setUser] = useState(null);
+  const [stats, setStats] = useState({
+    totalScans: 0,
+    totalPoints: 0,
+    itemTypes: {}
+  });
 
   useEffect(() => {
     if (isWeb && typeof window === 'undefined') return;
@@ -42,8 +47,8 @@ export default function DashboardScreen() {
 
       // Load scan history
       try {
-        const scansCol = collection(db, "scans");
-        const q = query(scansCol, where("uid", "==", currentUser.uid));
+        const scansRef = collection(db, "scan"); // Changed to "scan" collection
+        const q = query(scansRef, where("email", "==", currentUser.email));
         const snap = await getDocs(q);
         setItemsRecycled(snap.size);
       } catch (err) {
@@ -55,6 +60,45 @@ export default function DashboardScreen() {
     });
 
     return unsubscribe;
+  }, []);
+
+  // Update the stats fetching in the second useEffect
+  const fetchStats = async () => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const scansRef = collection(db, "scan"); // Changed to "scan" collection
+      const q = query(scansRef, where("email", "==", currentUser.email));
+      const querySnapshot = await getDocs(q);
+      
+      let totalPoints = 0;
+      let itemTypes = {};
+      
+      querySnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        // Add points for each scan
+        totalPoints += 10;
+        
+        if (data.biological) {
+          itemTypes[data.biological] = (itemTypes[data.biological] || 0) + 1;
+        }
+      });
+
+      setStats({
+        totalScans: querySnapshot.size,
+        totalPoints,
+        itemTypes
+      });
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
   }, []);
 
   const handleStartScanning = () => router.push('/scan');
