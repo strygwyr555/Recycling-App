@@ -1,8 +1,8 @@
 // FILE: app/dashboard.js
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { auth, db } from './firebaseInit.js';
 
@@ -21,17 +21,29 @@ export default function DashboardScreen() {
     itemTypes: {}
   });
 
+  // Check authentication
   useEffect(() => {
     if (isWeb && typeof window === 'undefined') return;
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         setCheckingAuth(false);
-        router.replace('/login_app'); // redirect if not logged in
+        router.replace('/login_app');
         return;
       }
 
       setUser(currentUser);
+      setCheckingAuth(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Fetch user data and stats
+  const fetchUserDataAndStats = useCallback(async () => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
 
       // Load user profile
       try {
@@ -45,30 +57,8 @@ export default function DashboardScreen() {
         console.error("Error loading profile:", err);
       }
 
-      // Load scan history
-      try {
-        const scansRef = collection(db, "scan"); // Changed to "scan" collection
-        const q = query(scansRef, where("email", "==", currentUser.email));
-        const snap = await getDocs(q);
-        setItemsRecycled(snap.size);
-      } catch (err) {
-        console.error("Error loading scan history:", err);
-      }
-
-      setLoading(false);
-      setCheckingAuth(false);
-    });
-
-    return unsubscribe;
-  }, []);
-
-  // Update the stats fetching in the second useEffect
-  const fetchStats = async () => {
-    try {
-      const currentUser = auth.currentUser;
-      if (!currentUser) return;
-
-      const scansRef = collection(db, "scan"); // Changed to "scan" collection
+      // Load scan history and stats
+      const scansRef = collection(db, "scan");
       const q = query(scansRef, where("email", "==", currentUser.email));
       const querySnapshot = await getDocs(q);
       
@@ -77,14 +67,14 @@ export default function DashboardScreen() {
       
       querySnapshot.docs.forEach(doc => {
         const data = doc.data();
-        // Add points for each scan
-        totalPoints += 10;
+        totalPoints += data.points || 10; // Use points from document or default to 10
         
         if (data.biological) {
           itemTypes[data.biological] = (itemTypes[data.biological] || 0) + 1;
         }
       });
 
+      setItemsRecycled(querySnapshot.size);
       setStats({
         totalScans: querySnapshot.size,
         totalPoints,
@@ -92,14 +82,25 @@ export default function DashboardScreen() {
       });
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching stats:", error);
+      console.error("Error fetching data:", error);
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchStats();
   }, []);
+
+  // Fetch data on initial mount
+  useEffect(() => {
+    if (!checkingAuth) {
+      fetchUserDataAndStats();
+    }
+  }, [checkingAuth, fetchUserDataAndStats]);
+
+  // Re-fetch data when screen is focused (when returning from scan)
+  useFocusEffect(
+    useCallback(() => {
+      console.log("Dashboard focused - refreshing data");
+      fetchUserDataAndStats();
+    }, [fetchUserDataAndStats])
+  );
 
   const handleStartScanning = () => router.push('/scan');
   const handleViewHistory = () => router.push('/history');
@@ -150,7 +151,7 @@ export default function DashboardScreen() {
             <Text style={styles.statLabel}>Items Scanned</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statNumber}>{Math.round(itemsRecycled * 0.5)}</Text>
+            <Text style={styles.statNumber}>{stats.totalPoints}</Text>
             <Text style={styles.statLabel}>Points Earned</Text>
           </View>
         </View>

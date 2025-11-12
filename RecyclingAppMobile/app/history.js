@@ -1,191 +1,168 @@
-import { View, Text, StyleSheet, ScrollView, Image } from "react-native";
-import { useRouter } from "expo-router";
-import { useState, useEffect } from "react";
-import { auth, db } from './firebaseInit';
-import { collection, query, getDocs, orderBy, limit } from 'firebase/firestore';
+import { useRouter, useFocusEffect } from "expo-router";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { auth, db } from "./firebaseInit";
 
 export default function HistoryScreen() {
   const router = useRouter();
   const [historyData, setHistoryData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        console.log("Starting fetch...");
-        
-        // Debug Firebase connection
-        console.log("Database instance:", db);
-        console.log("Current user:", auth.currentUser?.email);
+  const parseTimestamp = (ts) => {
+    try {
+      const date = new Date(ts);
+      return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+    } catch {
+      return ts;
+    }
+  };
 
-        // Get reference to the scan collection
-        const scansRef = collection(db, "scan");
-        console.log("Collection reference:", scansRef);
+  const fetchHistory = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
 
-        // Create simple query first to test
-        const q = query(
-          scansRef,
-          limit(5) // Limit to 5 documents for testing
-        );
+      const scansRef = collection(db, "scan");
+      const q = query(scansRef, where("email", "==", user.email));
+      const querySnapshot = await getDocs(q);
 
-        // Debug query
-        console.log("Query:", q);
+      const scans = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-        const querySnapshot = await getDocs(q);
-        console.log("Query snapshot:", querySnapshot);
-        console.log("Total documents found:", querySnapshot.size);
+      setHistoryData(scans.reverse());
+      setLoading(false);
+    } catch (err) {
+      console.error("Error fetching history:", err);
+      setLoading(false);
+    }
+  };
 
-        // Debug first document if exists
-        if (querySnapshot.size > 0) {
-          const firstDoc = querySnapshot.docs[0];
-          console.log("First document ID:", firstDoc.id);
-          console.log("First document data:", firstDoc.data());
-        }
+  // Re-fetch when the screen is focused (so new scans appear when returning)
+  useFocusEffect(
+    useCallback(() => {
+      fetchHistory();
+    }, [])
+  );
 
-        const history = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-          
-          // Debug individual document data
-          console.log("Processing document:", doc.id, data);
-
-          return {
-            id: doc.id,
-            ...data,
-            // Handle potential missing fields
-            imageUrl: data.imageUrl || null,
-            classification: data.classification || 'Unknown',
-            date: data.timestamp ? new Date(data.timestamp).toLocaleDateString() : 'No date',
-            time: data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : 'No time'
-          };
-        });
-
-        console.log("Final processed history:", history);
-        setHistoryData(history);
-        setLoading(false);
-      } catch (error) {
-        console.error("Error details:", {
-          message: error.message,
-          code: error.code,
-          stack: error.stack,
-          name: error.name
-        });
-        setLoading(false);
-      }
-    };
-
-    fetchHistory();
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchHistory().then(() => setRefreshing(false));
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.replace("/login_app");
+    } catch (err) {
+      console.error("Error logging out:", err);
+      alert("Failed to log out. Please try again.");
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#27ae60" />
+        <Text style={styles.loadingText}>Loading history...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header with Back Button */}
       <View style={styles.header}>
+        <Pressable onPress={() => router.push("/dashboard")} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </Pressable>
         <Text style={styles.headerTitle}>Scan History</Text>
+        <View style={{ width: 60 }} />
       </View>
 
-      {/* History Grid */}
-      <ScrollView style={styles.historyGrid}>
-        {loading ? (
-          <Text style={styles.loadingText}>Loading history...</Text>
-        ) : historyData.length === 0 ? (
-          <Text style={styles.noDataText}>No scan history found</Text>
-        ) : (
-          historyData.map((item) => (
-            <View key={item.id} style={styles.historyItem}>
+      {/* History List */}
+      {historyData.length === 0 ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.noDataText}>No scans yet. Start scanning to see your history!</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={historyData}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.historyItem}>
               {item.imageUrl && (
-                <Image 
-                  source={{ uri: item.imageUrl }} 
-                  style={styles.itemImage}
-                  resizeMode="cover"
-                />
+                <View style={styles.imageContainer}>
+                  <Text style={styles.itemImage}>📷 Image captured</Text>
+                </View>
               )}
               <View style={styles.itemDetails}>
-                <Text style={styles.itemText}>Classification: {item.classification || 'Unknown'}</Text>
-                <Text style={styles.itemText}>Date: {item.date}</Text>
-                <Text style={styles.itemText}>Time: {item.time}</Text>
+                <Text style={styles.itemText}>
+                  <Text style={{ fontWeight: "700" }}>Item:</Text> {item.biological || "Unknown"}
+                </Text>
+                <Text style={styles.itemText}>
+                  <Text style={{ fontWeight: "700" }}>Disposal:</Text> {item.disposalInstruction || "N/A"}
+                </Text>
+                <Text style={styles.itemText}>
+                  <Text style={{ fontWeight: "700" }}>Confidence:</Text> {item.confidence ? item.confidence.toFixed(0) + "%" : "N/A"}
+                </Text>
+                <Text style={styles.itemText}>
+                  <Text style={{ fontWeight: "700" }}>Points:</Text> {item.points || 10}
+                </Text>
+                <Text style={styles.itemText}>
+                  <Text style={{ fontWeight: "700" }}>Date:</Text> {parseTimestamp(item.timestamp)}
+                </Text>
               </View>
             </View>
-          ))
-        )}
-      </ScrollView>
+          )}
+          contentContainerStyle={styles.historyGrid}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    paddingTop: 40, // Add safe area padding
-  },
+  container: { flex: 1, backgroundColor: "#fff", paddingTop: Platform.OS === "android" ? 24 : 40 },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 16,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderBottomWidth: 1,
-    borderBottomColor: '#dee2e6',
+    borderBottomColor: "#dee2e6",
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+  backButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#27ae60",
+    borderRadius: 6,
   },
-  logoutButton: {
-    padding: 8,
+  backButtonText: {
+    color: "white",
+    fontWeight: "700",
+    fontSize: 14,
   },
-  filterCard: {
-    backgroundColor: '#fff',
-    padding: 16,
-    margin: 16,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  filterTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  historyGrid: {
-    flex: 1,
-    padding: 16,
-  },
+  headerTitle: { fontSize: 24, fontWeight: "bold", color: "#333", flex: 1, textAlign: "center" },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
+  loadingText: { marginTop: 12, fontSize: 16, color: "#666" },
+  historyGrid: { padding: 16 },
   historyItem: {
-    backgroundColor: '#f0f0f0',
-    padding: 16,
+    backgroundColor: "#f0f0f0",
+    padding: 12,
     marginBottom: 12,
     borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: '#27ae60',
+    borderLeftColor: "#27ae60",
   },
-  itemImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  itemDetails: {
-    gap: 4,
-  },
-  itemText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  loadingText: {
-    textAlign: 'center',
-    padding: 20,
-    fontSize: 16,
-    color: '#666',
-  },
-  noDataText: {
-    textAlign: 'center',
-    padding: 20,
-    fontSize: 16,
-    color: '#666',
-  }
+  imageContainer: { marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "#e0e0e0" },
+  itemImage: { width: "100%", fontSize: 12, color: "#666", marginBottom: 10 },
+  itemDetails: { gap: 4 },
+  itemText: { fontSize: 14, color: "#333" },
+  noDataText: { textAlign: "center", padding: 20, fontSize: 16, color: "#666" },
 });

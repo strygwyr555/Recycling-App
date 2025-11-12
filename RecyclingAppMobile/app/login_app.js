@@ -130,7 +130,7 @@ export default function LoginScreen() {
 
       <Pressable
         style={styles.linkButton}
-        onPress={() => router.push("/index")}
+        onPress={() => router.push("/")}
         disabled={loading}
       >
         <Text style={styles.linkText}>Back to Home</Text>
