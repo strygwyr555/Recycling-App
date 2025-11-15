@@ -2,8 +2,8 @@
 import { auth, db } from './firebaseInit.js';
 import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
-// Ngrok URL of your Flask API
-const API_URL = "https://hypernutritive-marley-untheoretically.ngrok-free.dev/predict"; // replace with your current Ngrok URL
+// Flask API URL (Ngrok)
+const API_URL = "https://hypernutritive-marley-untheoretically.ngrok-free.dev/predict"; // Update as needed
 
 class CameraHandler {
     constructor() {
@@ -29,8 +29,8 @@ class CameraHandler {
         this.captureButton.addEventListener('click', () => this.captureImage());
         this.retakeButton.addEventListener('click', () => this.retakePhoto());
         this.classifyButton.addEventListener('click', async () => {
-            const label = await this.classifyImageAPI();
-            await this.saveImageToFirestore(label);
+            const data = await this.classifyImageAPI();
+            if (data) await this.saveImageToFirestore(data);
         });
 
         this.uploadFileButton.addEventListener('click', () => {
@@ -117,35 +117,29 @@ class CameraHandler {
 
     async classifyImageAPI() {
         const formData = new FormData();
-
-        if (this.uploadedFile) formData.append('file', this.uploadedFile);
-        else {
-            // Convert canvas to blob
+        if (this.uploadedFile) {
+            formData.append('file', this.uploadedFile);
+        } else {
             const blob = await new Promise(resolve => this.canvas.toBlob(resolve, 'image/jpeg'));
             formData.append('file', blob, 'capture.jpg');
         }
 
         try {
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                body: formData
-            });
-
+            const res = await fetch(API_URL, { method: 'POST', body: formData });
             if (!res.ok) throw new Error(`Server error: ${res.status}`);
-
             const data = await res.json();
 
-            // Display results
+            // Show classification results
             const classificationDisplay = document.getElementById('classificationDisplay');
             const classificationInfo = document.getElementById('classificationInfo');
             if (classificationDisplay && classificationInfo) {
                 classificationDisplay.style.display = 'block';
                 classificationInfo.innerHTML = `
-        Detected: ${data.predicted_class} <br>
-        Confidence: ${(data.confidence * 100).toFixed(1)}% <br>
-        Bin: ${data.bin} <br>
-        Suggestion: ${data.suggestion}
-    `;
+                    <strong>Detected:</strong> ${data.predicted_class}<br>
+                    <strong>Confidence:</strong> ${(data.confidence * 100).toFixed(1)}%<br>
+                    <strong>Bin:</strong> ${data.bin}<br>
+                    <strong>Suggestion:</strong> ${data.suggestion}
+                `;
             }
 
             // Update confidence bar
@@ -157,8 +151,7 @@ class CameraHandler {
                 text.textContent = `${confidencePercent}% confidence`;
             }
 
-            return data.predicted_class;
-
+            return data;
         } catch (err) {
             console.error("❌ API classification error:", err);
             this.showPopup("Failed to classify image via API.");
@@ -166,11 +159,10 @@ class CameraHandler {
         }
     }
 
-
-    async saveImageToFirestore(classification = null) {
+    async saveImageToFirestore(data) {
         this.classifyButton.disabled = true;
-
         let cloudinaryUrl = null;
+
         try {
             if (this.uploadedFile) cloudinaryUrl = await this.uploadFileToCloudinary(this.uploadedFile);
             else cloudinaryUrl = await this.uploadToCloudinary();
@@ -186,13 +178,17 @@ class CameraHandler {
             try {
                 await addDoc(collection(db, 'scans'), {
                     imageUrl: cloudinaryUrl,
-                    classification: classification || "Unknown",
+                    classification: data.predicted_class,
+                    confidence: data.confidence,
+                    bin: data.bin,
+                    suggestion: data.suggestion,
+                    email: userEmail,
                     timestamp: new Date().toISOString(),
-                    email: userEmail
                 });
-                this.showPopup(`Image + classification (${classification}) saved!`);
+                this.showPopup(`Saved: ${data.predicted_class} (${(data.confidence * 100).toFixed(1)}%)`);
                 this.uploadedFile = null;
-            } catch {
+            } catch (err) {
+                console.error("❌ Firestore save error:", err);
                 this.showPopup("Failed to save to Firestore.");
             }
         } else {
@@ -206,7 +202,10 @@ class CameraHandler {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('upload_preset', uploadPreset);
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData });
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            method: 'POST',
+            body: formData
+        });
         const data = await res.json();
         return data.secure_url || null;
     }
@@ -218,7 +217,10 @@ class CameraHandler {
         const formData = new FormData();
         formData.append('file', base64Image);
         formData.append('upload_preset', uploadPreset);
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData });
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            method: 'POST',
+            body: formData
+        });
         const data = await res.json();
         return data.secure_url || null;
     }
