@@ -1,7 +1,17 @@
-import { useRouter, useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { auth, db } from "./firebaseInit";
 
 export default function HistoryScreen() {
@@ -24,7 +34,7 @@ export default function HistoryScreen() {
       const user = auth.currentUser;
       if (!user) return;
 
-      const scansRef = collection(db, "scan");
+      const scansRef = collection(db, "scans");
       const q = query(scansRef, where("email", "==", user.email));
       const querySnapshot = await getDocs(q);
 
@@ -41,7 +51,6 @@ export default function HistoryScreen() {
     }
   };
 
-  // Re-fetch when the screen is focused (so new scans appear when returning)
   useFocusEffect(
     useCallback(() => {
       fetchHistory();
@@ -53,28 +62,18 @@ export default function HistoryScreen() {
     fetchHistory().then(() => setRefreshing(false));
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      router.replace("/login_app");
-    } catch (err) {
-      console.error("Error logging out:", err);
-      alert("Failed to log out. Please try again.");
-    }
-  };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#27ae60" />
-        <Text style={styles.loadingText}>Loading history...</Text>
+        <Text style={styles.loadingText}>Loading your scan history...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Header with Back Button */}
+      {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.push("/dashboard")} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
@@ -83,7 +82,7 @@ export default function HistoryScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      {/* History List */}
+      {/* List */}
       {historyData.length === 0 ? (
         <View style={styles.loadingContainer}>
           <Text style={styles.noDataText}>No scans yet. Start scanning to see your history!</Text>
@@ -92,34 +91,33 @@ export default function HistoryScreen() {
         <FlatList
           data={historyData}
           keyExtractor={(item) => item.id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item }) => (
-            <View style={styles.historyItem}>
+            <View style={styles.card}>
               {item.imageUrl && (
-                <View style={styles.imageContainer}>
-                  <Text style={styles.itemImage}>📷 Image captured</Text>
-                </View>
+                <Image source={{ uri: item.imageUrl }} style={styles.image} resizeMode="cover" />
               )}
-              <View style={styles.itemDetails}>
-                <Text style={styles.itemText}>
-                  <Text style={{ fontWeight: "700" }}>Item:</Text> {item.biological || "Unknown"}
+              <View style={styles.infoContainer}>
+                <Text style={styles.itemTitle}>
+                  🧠 {item.classification ? item.classification.toUpperCase() : "Unknown"}
                 </Text>
                 <Text style={styles.itemText}>
-                  <Text style={{ fontWeight: "700" }}>Disposal:</Text> {item.disposalInstruction || "N/A"}
+                  <Text style={styles.bold}>Confidence:</Text>{" "}
+                  {item.confidence ? `${(item.confidence * 100).toFixed(1)}%` : "N/A"}
                 </Text>
                 <Text style={styles.itemText}>
-                  <Text style={{ fontWeight: "700" }}>Confidence:</Text> {item.confidence ? item.confidence.toFixed(0) + "%" : "N/A"}
+                  <Text style={styles.bold}>Bin:</Text> {item.bin || "N/A"}
                 </Text>
                 <Text style={styles.itemText}>
-                  <Text style={{ fontWeight: "700" }}>Points:</Text> {item.points || 10}
+                  <Text style={styles.bold}>Suggestion:</Text> {item.suggestion || "N/A"}
                 </Text>
                 <Text style={styles.itemText}>
-                  <Text style={{ fontWeight: "700" }}>Date:</Text> {parseTimestamp(item.timestamp)}
+                  <Text style={styles.bold}>Date:</Text> {parseTimestamp(item.timestamp)}
                 </Text>
               </View>
             </View>
           )}
-          contentContainerStyle={styles.historyGrid}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          contentContainerStyle={styles.listContent}
         />
       )}
     </View>
@@ -127,7 +125,11 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", paddingTop: Platform.OS === "android" ? 24 : 40 },
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+    paddingTop: Platform.OS === "android" ? 24 : 40,
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -143,26 +145,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#27ae60",
     borderRadius: 6,
   },
-  backButtonText: {
-    color: "white",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  headerTitle: { fontSize: 24, fontWeight: "bold", color: "#333", flex: 1, textAlign: "center" },
+  backButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  headerTitle: { fontSize: 22, fontWeight: "bold", color: "#333", flex: 1, textAlign: "center" },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
   loadingText: { marginTop: 12, fontSize: 16, color: "#666" },
-  historyGrid: { padding: 16 },
-  historyItem: {
+  noDataText: { textAlign: "center", fontSize: 16, color: "#666", marginTop: 20 },
+  listContent: { padding: 16 },
+  card: {
     backgroundColor: "#f0f0f0",
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: "#27ae60",
+    borderRadius: 10,
+    marginBottom: 16,
+    overflow: "hidden",
+    elevation: 3,
   },
-  imageContainer: { marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "#e0e0e0" },
-  itemImage: { width: "100%", fontSize: 12, color: "#666", marginBottom: 10 },
-  itemDetails: { gap: 4 },
-  itemText: { fontSize: 14, color: "#333" },
-  noDataText: { textAlign: "center", padding: 20, fontSize: 16, color: "#666" },
+  image: { width: "100%", height: 180 },
+  infoContainer: { padding: 12 },
+  itemTitle: { fontSize: 18, fontWeight: "700", color: "#27ae60", marginBottom: 4 },
+  itemText: { fontSize: 14, color: "#333", marginBottom: 3 },
+  bold: { fontWeight: "700" },
 });
