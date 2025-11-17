@@ -58,7 +58,7 @@ export default function DashboardScreen() {
       }
 
       // Load scan history and stats
-      const scansRef = collection(db, "scan");
+      const scansRef = collection(db, "scans");
       const q = query(scansRef, where("email", "==", currentUser.email));
       const querySnapshot = await getDocs(q);
       
