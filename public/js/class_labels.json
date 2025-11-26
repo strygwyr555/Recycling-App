@@ -1,4 +1,11 @@
 {
-    "0": "paper",
-    "1": "plastic"
+    "0": "E-waste",
+    "1": "automobile wastes",
+    "2": "battery waste",
+    "3": "glass waste",
+    "4": "light bulbs",
+    "5": "metal waste",
+    "6": "organic waste",
+    "7": "paper waste",
+    "8": "plastic waste"
 }
