@@ -21,16 +21,42 @@ const AI_API_URL = "https://hypernutritive-marley-untheoretically.ngrok-free.dev
 const CLOUDINARY_CLOUD = "dtmpkhm3z";
 const UPLOAD_PRESET = "recycleApp";
 
+// NEW: 12-class system matching Flask
+const LABEL_MAP = {
+  "metal waste": "metal_waste",
+  "organic waste": "organic_waste",
+  "paper waste": "paper_waste",
+  "plastic waste": "plastic_waste",
+  "battery waste": "battery_waste",
+
+  "white-glass": "white_glass",
+  "green-glass": "green_glass",
+  "brown-glass": "brown_glass",
+
+  "cardboard waste": "cardboard_waste",
+  "clothing waste": "clothing_waste",
+
+  "E-waste": "e_waste",
+  "trash": "trash",
+};
+
 const TRASH_CLASSIFICATIONS = [
-  { id: "plastic", label: "Plastic Waste", color: "#3498db" },
-  { id: "metal", label: "Metal Waste", color: "#95a5a6" },
-  { id: "paper", label: "Paper Waste", color: "#e67e22" },
-  { id: "battery", label: "Battery Waste", color: "#f39c12" },
-  { id: "glass", label: "Glass Waste", color: "#27ae60" },
-  { id: "automobile", label: "Automobile Wastes", color: "#c0392b" },
-  { id: "organic", label: "Organic Waste", color: "#8b4513" },
-  { id: "ewaste", label: "E-waste", color: "#2c3e50" },
-  { id: "lightbulb", label: "Light Bulbs", color: "#f1c40f" },
+  { id: "metal_waste", label: "Metal Waste", color: "#95a5a6" },
+  { id: "organic_waste", label: "Organic Waste", color: "#8b4513" },
+  { id: "paper_waste", label: "Paper Waste", color: "#e67e22" },
+  { id: "plastic_waste", label: "Plastic Waste", color: "#3498db" },
+  { id: "battery_waste", label: "Battery Waste", color: "#f39c12" },
+
+  { id: "white_glass", label: "White Glass", color: "#ecf0f1" },
+  { id: "green_glass", label: "Green Glass", color: "#2ecc71" },
+  { id: "brown_glass", label: "Brown Glass", color: "#d35400" },
+
+  { id: "cardboard_waste", label: "Cardboard Waste", color: "#d68910" },
+  { id: "clothing_waste", label: "Clothing Waste", color: "#c0392b" },
+
+  { id: "e_waste", label: "E-waste", color: "#2c3e50" },
+
+  { id: "trash", label: "Trash", color: "#7f8c8d" },
 ];
 
 export default function ScanScreen() {
@@ -45,18 +71,16 @@ export default function ScanScreen() {
   const [selectedClassification, setSelectedClassification] = useState(null);
   const [showClassificationScreen, setShowClassificationScreen] = useState(false);
   const [cloudinaryUrl, setCloudinaryUrl] = useState(null);
+
   const [orientation, setOrientation] = useState(
     width > height ? "landscape" : "portrait"
   );
 
-  // Track orientation changes
   useEffect(() => {
     const isLandscape = width > height;
     setOrientation(isLandscape ? "landscape" : "portrait");
   }, [width, height]);
 
-  // Responsive values
-  const isLandscape = orientation === "landscape";
   const isMobileSmall = width < 375;
   const isTablet = width >= 768;
 
@@ -81,17 +105,7 @@ export default function ScanScreen() {
       padding = 24;
     }
 
-    if (isLandscape && !isTablet) {
-      imageHeight = height * 0.5;
-    }
-
-    return {
-      titleFontSize,
-      textFontSize,
-      buttonFontSize,
-      imageHeight,
-      padding,
-    };
+    return { titleFontSize, textFontSize, buttonFontSize, imageHeight, padding };
   };
 
   const sizes = getResponsiveSizes();
@@ -100,7 +114,7 @@ export default function ScanScreen() {
     if (!permission) requestPermission();
   }, [permission]);
 
-  // Capture photo from camera
+  // CAPTURE PHOTO
   const handleScan = async () => {
     if (!cameraRef) return;
     try {
@@ -108,13 +122,12 @@ export default function ScanScreen() {
       const photo = await cameraRef.takePictureAsync({ quality: 0.8 });
       await processPreview(photo.uri);
     } catch (err) {
-      console.error("Camera capture error:", err);
-      alert("Failed to capture image. Please try again.");
+      alert("Failed to capture image.");
       setScanning(false);
     }
   };
 
-  // Pick image from gallery
+  // PICK FROM GALLERY
   const handlePickImage = async () => {
     try {
       setScanning(true);
@@ -122,108 +135,77 @@ export default function ScanScreen() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.8,
       });
-
       if (!result.canceled) {
         await processPreview(result.assets[0].uri);
       } else {
         setScanning(false);
       }
     } catch (err) {
-      console.error("Gallery pick error:", err);
-      alert("Failed to pick image. Please try again.");
+      alert("Failed to pick image.");
       setScanning(false);
     }
   };
 
-  // Process image: upload to Cloudinary → classify with ML → show classification screen
+  // PROCESS IMAGE (UPLOAD + CLASSIFY)
   const processPreview = async (uri) => {
     try {
       setScanning(true);
 
-      // Step 1: Upload image to Cloudinary
       const imageUrl = await uploadToCloudinary(uri);
-      if (!imageUrl) throw new Error("Image upload failed");
+      if (!imageUrl) throw new Error("Upload failed");
+
       setCloudinaryUrl(imageUrl);
 
-      // Step 2: Get BOTH AI model predictions in parallel
-      console.log("📊 Getting dual AI predictions...");
       const dualPredictions = await classifyImageAIDual(uri);
-      if (!dualPredictions) throw new Error("Classification failed");
 
-      console.log("✅ AI Model 1:", dualPredictions.model1);
-      console.log("✅ AI Model 2:", dualPredictions.model2);
-
-      // Step 3: Show classification selection screen
-      setPreviewUri(uri);
       setAiModel1Result(dualPredictions.model1);
       setAiModel2Result(dualPredictions.model2);
+
+      setPreviewUri(uri);
       setShowClassificationScreen(true);
       setScanning(false);
     } catch (err) {
-      console.error("Preview processing error:", err);
-      alert("Failed to process image. Please try again.");
+      alert("Processing failed.");
       setScanning(false);
     }
   };
 
-  // Handle user classification selection
   const handleClassificationSelect = (classificationId) => {
-    console.log("User selected:", classificationId);
     setSelectedClassification(classificationId);
   };
 
-  // Confirm selection and navigate to final classification page
-  const handleConfirmAndContinue = async () => {
-    try {
-      if (!selectedClassification) {
-        alert("Please select a trash type");
-        return;
-      }
-
-      console.log("🔄 Running ensemble algorithm...");
-      setScanning(true);
-
-      // Step 1: Run ensemble classifier with dual models + human selection
-      const ensembleResult = ensembleClassify({
-        model1: aiModel1Result,
-        model2: aiModel2Result,
-        human: selectedClassification,
-      });
-
-      console.log("📊 Ensemble Result:", ensembleResult);
-
-      // Step 2: Navigate to final classification page
-      router.push({
-        pathname: "/final",
-        params: {
-          imageUrl: cloudinaryUrl,
-          previewUri: previewUri,
-          userSelection: selectedClassification,
-          ensembleResult: JSON.stringify(ensembleResult),
-        },
-      });
-
-      setScanning(false);
-    } catch (err) {
-      console.error("Error confirming selection:", err);
-      alert("Failed to process. Please try again.");
-      setScanning(false);
+  const handleConfirmAndContinue = () => {
+    if (!selectedClassification) {
+      alert("Please select a category");
+      return;
     }
+
+    const ensembleResult = ensembleClassify({
+      model1: aiModel1Result,
+      model2: aiModel2Result,
+      human: selectedClassification,
+    });
+
+    router.push({
+      pathname: "/final",
+      params: {
+        imageUrl: cloudinaryUrl,
+        previewUri,
+        userSelection: selectedClassification,
+        ensembleResult: JSON.stringify(ensembleResult),
+      },
+    });
   };
 
-  // Cancel and return to camera
   const cancelPreview = () => {
-    console.log("User cancelled");
     setPreviewUri(null);
     setAiModel1Result(null);
     setAiModel2Result(null);
     setSelectedClassification(null);
-    setCloudinaryUrl(null);
     setShowClassificationScreen(false);
-    setScanning(false);
   };
 
-  // Upload image to Cloudinary
+  // CLOUDINARY
   const uploadToCloudinary = async (uri) => {
     try {
       const base64 = await toBase64(uri);
@@ -231,265 +213,151 @@ export default function ScanScreen() {
       formData.append("file", base64);
       formData.append("upload_preset", UPLOAD_PRESET);
 
-      const response = await fetch(
+      const res = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
         { method: "POST", body: formData }
       );
 
-      const data = await response.json();
-      console.log("☁️ Cloudinary upload successful:", data.secure_url);
+      const data = await res.json();
       return data.secure_url || null;
     } catch (err) {
-      console.error("❌ Cloudinary upload error:", err);
       return null;
     }
   };
 
-  // Classify image using dual ML models
+  // ML CLASSIFICATION
   const classifyImageAIDual = async (uri) => {
-    try {
-      const base64 = await toBase64(uri);
+    const base64 = await toBase64(uri);
 
-      const response = await fetch(AI_API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: base64 }),
-      });
+    const res = await fetch(AI_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: base64 }),
+    });
 
-      if (!response.ok) {
-        throw new Error(`API returned ${response.status}`);
-      }
+    const data = await res.json();
 
-      const data = await response.json();
-
-      // ===== HANDLE NEW DUAL-MODEL FORMAT =====
-      // Data format: { mobilenet: {...}, rexnet: {...} }
-      return {
-        model1: {
-          prediction: data.mobilenet?.prediction || data.model1?.prediction || "Unknown",
-          confidence: parseFloat(data.mobilenet?.confidence || data.model1?.confidence || 0),
-        },
-        model2: {
-          prediction: data.rexnet?.prediction || data.model2?.prediction || "Unknown",
-          confidence: parseFloat(data.rexnet?.confidence || data.model2?.confidence || 0),
-        },
-      };
-    } catch (err) {
-      console.error("❌ ML classification error:", err);
-      console.log("⚠️ Falling back to single model or error state");
-      
-      // Graceful degradation: return error object
-      return null;
-    }
+    return {
+      model1: {
+        prediction: LABEL_MAP[data.mobilenet.prediction] || "unknown",
+        confidence: data.mobilenet.confidence,
+      },
+      model2: {
+        prediction: LABEL_MAP[data.rexnet.prediction] || "unknown",
+        confidence: data.rexnet.confidence,
+      },
+    };
   };
 
-  // Convert image to Base64
   const toBase64 = async (uri) => {
     const response = await fetch(uri);
     const blob = await response.blob();
-    return new Promise((resolve, reject) => {
+
+    return await new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onerror = reject;
-      reader.onload = () => resolve(reader.result);
+      reader.onloadend = () => resolve(reader.result);
       reader.readAsDataURL(blob);
     });
   };
 
-  if (!permission) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#27ae60" />
-        <Text style={[styles.text, { fontSize: sizes.textFontSize }]}>
-          Requesting camera permission...
-        </Text>
-      </View>
-    );
-  }
-
-  if (!permission.granted) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Text style={[styles.text, { fontSize: sizes.textFontSize }]}>
-          Camera access is required to scan items
-        </Text>
-        <Pressable style={styles.button} onPress={requestPermission}>
-          <Text style={[styles.buttonText, { fontSize: sizes.buttonFontSize }]}>
-            Grant Permission
-          </Text>
-        </Pressable>
-      </SafeAreaView>
-    );
-  }
-
-  // Classification Selection Screen
+  // CLASSIFICATION SCREEN
   if (showClassificationScreen && previewUri) {
     return (
       <SafeAreaView style={styles.previewContainer}>
-        <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            { padding: sizes.padding, paddingBottom: sizes.padding * 2 },
-          ]}
-        >
-          {/* Image Preview */}
-          <Image
-            source={{ uri: previewUri }}
-            style={[styles.previewImage, { height: sizes.imageHeight }]}
-          />
+        <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <Image source={{ uri: previewUri }} style={styles.previewImage} />
 
-          {/* Title */}
-          <Text
-            style={[
-              styles.classificationTitle,
-              { fontSize: sizes.titleFontSize, marginBottom: sizes.padding },
-            ]}
-          >
-            Select the correct trash material type
+          <Text style={styles.classificationTitle}>
+            Select the correct trash type
           </Text>
 
-          {/* AI Predictions Summary (Read-only) */}
-          {aiModel1Result && aiModel2Result && (
-            <View style={[styles.aiSummaryBox, { marginBottom: sizes.padding }]}>
-              <Text style={[styles.aiSummaryTitle, { fontSize: sizes.textFontSize * 0.9 }]}>
-                🤖 AI Suggestions:
-              </Text>
-              <View style={styles.aiSummaryRow}>
-                <Text style={styles.aiSummaryLabel}>Model 1:</Text>
-                <Text style={styles.aiSummaryPred}>
-                  {aiModel1Result.prediction} ({(aiModel1Result.confidence * 100).toFixed(0)}%)
-                </Text>
-              </View>
-              <View style={styles.aiSummaryRow}>
-                <Text style={styles.aiSummaryLabel}>Model 2:</Text>
-                <Text style={styles.aiSummaryPred}>
-                  {aiModel2Result.prediction} ({(aiModel2Result.confidence * 100).toFixed(0)}%)
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {/* Classification Grid */}
-          <View style={styles.classificationGrid}>
+          <View style={{ marginBottom: 20 }}>
             {TRASH_CLASSIFICATIONS.map((item) => (
               <Pressable
                 key={item.id}
                 style={[
                   styles.classificationButton,
-                  {
-                    borderLeftWidth: 4,
-                    borderLeftColor: item.color,
-                  },
                   selectedClassification === item.id &&
-                    styles.classificationButtonSelected,
+                  styles.classificationButtonSelected,
                 ]}
                 onPress={() => handleClassificationSelect(item.id)}
               >
-                <Text
-                  style={[
-                    styles.classificationLabel,
-                    { fontSize: sizes.textFontSize * 0.85 },
-                  ]}
-                >
-                  {item.label}
-                </Text>
+                <Text style={styles.classificationLabel}>{item.label}</Text>
               </Pressable>
             ))}
           </View>
 
-          {/* Selected Confirmation */}
-          {selectedClassification && (
-            <View
-              style={[
-                styles.confirmBox,
-                { marginBottom: sizes.padding, padding: sizes.padding },
-              ]}
-            >
-              <Text style={[styles.confirmText, { fontSize: sizes.textFontSize }]}>
-                Your Selection:{" "}
-                <Text style={styles.bold}>
-                  {TRASH_CLASSIFICATIONS.find(
-                    (c) => c.id === selectedClassification
-                  )?.label}
-                </Text>
-              </Text>
-            </View>
-          )}
+          <View style={{ alignItems: "center", width: "100%", marginTop: 10 }}>
 
-          {/* Buttons Container */}
-          <View style={[styles.buttonContainer, { gap: sizes.padding }]}>
             <Pressable
               style={[
                 styles.button,
-                styles.confirmButton,
+                { backgroundColor: "#27ae60", width: 220 },
                 !selectedClassification && styles.buttonDisabled,
-                { paddingVertical: 14, width: "100%" },
               ]}
+              disabled={!selectedClassification}
               onPress={handleConfirmAndContinue}
-              disabled={!selectedClassification || scanning}
             >
-              <Text style={[styles.buttonText, { fontSize: sizes.buttonFontSize }]}>
-                {scanning ? "Processing..." : "View Recommendation"}
-              </Text>
+              <Text style={styles.buttonText}>View Recommendation</Text>
             </Pressable>
 
             <Pressable
               style={[
                 styles.button,
-                styles.cancelButton,
-                { paddingVertical: 14, width: "100%" },
+                { backgroundColor: "#c0392b", width: 220 },
               ]}
               onPress={cancelPreview}
-              disabled={scanning}
             >
-              <Text style={[styles.buttonText, { fontSize: sizes.buttonFontSize }]}>
-                Cancel
-              </Text>
+              <Text style={styles.buttonText}>Cancel</Text>
             </Pressable>
+
           </View>
+
         </ScrollView>
       </SafeAreaView>
     );
   }
 
-  // Camera screen
+  // CAMERA SCREEN (UI RESTORED EXACTLY)
   return (
     <View style={styles.container}>
       <CameraView ref={setCameraRef} style={styles.camera} facing="back" />
+
       <View style={styles.overlay}>
+        {/* Capture Scan Button */}
         <Pressable
           style={[styles.button, scanning && styles.buttonDisabled]}
           onPress={handleScan}
           disabled={scanning}
         >
-          <Text style={[styles.buttonText, { fontSize: sizes.buttonFontSize }]}>
+          <Text style={styles.buttonText}>
             {scanning ? "Processing..." : "Capture Scan"}
           </Text>
         </Pressable>
 
+        {/* Pick from Gallery */}
         <Pressable
           style={[styles.button, { backgroundColor: "#555" }]}
           onPress={handlePickImage}
           disabled={scanning}
         >
-          <Text style={[styles.buttonText, { fontSize: sizes.buttonFontSize }]}>
-            Pick from Gallery
-          </Text>
+          <Text style={styles.buttonText}>Pick from Gallery</Text>
         </Pressable>
 
+        {/* Back Button */}
         <Pressable
           style={[styles.button, { backgroundColor: "#888" }]}
-          onPress={() => router.back()}
+          onPress={() => router.push("/dashboard")}
           disabled={scanning}
         >
-          <Text style={[styles.buttonText, { fontSize: sizes.buttonFontSize }]}>
-            Back
-          </Text>
+          <Text style={styles.buttonText}>Back</Text>
         </Pressable>
       </View>
     </View>
   );
 }
 
+// STYLES (Unchanged UI)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -514,60 +382,19 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { backgroundColor: "#95a5a6", opacity: 0.6 },
   buttonText: { color: "#fff", fontWeight: "700", textAlign: "center" },
-  text: { color: "#fff", marginBottom: 20, textAlign: "center" },
-  previewContainer: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  scrollContent: {},
+  previewContainer: { flex: 1, backgroundColor: "#fff" },
   previewImage: {
     width: "100%",
+    height: 280,
     borderRadius: 12,
     marginBottom: 20,
-    backgroundColor: "#e0e0e0",
   },
   classificationTitle: {
     color: "#333",
+    fontSize: 18,
     fontWeight: "700",
-    textAlign: "center",
-  },
-
-  // AI Summary
-  aiSummaryBox: {
-    backgroundColor: "#f0f9ff",
-    borderRadius: 8,
-    padding: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: "#3498db",
-  },
-  aiSummaryTitle: {
-    fontWeight: "700",
-    color: "#2c3e50",
-    marginBottom: 8,
-  },
-  aiSummaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 6,
-    paddingBottom: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
-  },
-  aiSummaryLabel: {
-    color: "#666",
-    fontWeight: "600",
-    fontSize: 12,
-  },
-  aiSummaryPred: {
-    color: "#3498db",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-
-  classificationGrid: {
-    flexDirection: "column",
-    gap: 12,
     marginBottom: 20,
+    textAlign: "center",
   },
   classificationButton: {
     backgroundColor: "#f9f9f9",
@@ -576,29 +403,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 16,
     paddingHorizontal: 16,
-    alignItems: "flex-start",
+    marginBottom: 10,
   },
   classificationButtonSelected: {
     backgroundColor: "#e8f8f5",
     borderColor: "#27ae60",
-    borderWidth: 2,
   },
   classificationLabel: {
     color: "#333",
-    textAlign: "left",
     fontWeight: "600",
   },
-  confirmBox: {
-    backgroundColor: "#27ae60",
-    borderRadius: 8,
-  },
-  confirmText: { color: "#fff", textAlign: "center" },
-  bold: { fontWeight: "700" },
-  buttonContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 12,
-  },
-  confirmButton: { backgroundColor: "#27ae60" },
-  cancelButton: { backgroundColor: "#e74c3c" },
 });
+

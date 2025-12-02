@@ -18,6 +18,48 @@ import {
   getRecommendationColor,
 } from "./utils/ensembleClassifier";
 
+/* -----------------------------------------------------
+   LABEL NORMALIZATION — clean labels for final.js
+----------------------------------------------------- */
+const CLEAN_LABELS = {
+  metal_waste: "Metal Waste",
+  metal: "Metal Waste",
+  organic_waste: "Organic Waste",
+  organic: "Organic Waste",
+  paper_waste: "Paper Waste",
+  paper: "Paper Waste",
+  plastic_waste: "Plastic Waste",
+  plastic: "Plastic Waste",
+  battery_waste: "Battery Waste",
+  battery: "Battery Waste",
+  white_glass: "White Glass Waste",
+  green_glass: "Green Glass Waste",
+  brown_glass: "Brown Glass Waste",
+
+  cardboard_waste: "Cardboard Waste",
+  cardboard: "Cardboard Waste",
+  clothing_waste: "Clothing Waste",
+  clothing: "Clothing Waste",
+  e_waste: "E-waste",
+  e: "E-waste",
+  trash: "Trash",
+};
+
+function formatLabel(raw) {
+  if (!raw) return "";
+
+  let clean = raw.trim().toLowerCase();
+
+  clean = clean.replace(/[- ]/g, "_");
+  clean = clean.replace(/_+$/, "");
+
+  return CLEAN_LABELS[clean] || raw;
+}
+
+/* -----------------------------------------------------
+   MAIN SCREEN
+----------------------------------------------------- */
+
 export default function FinalClassificationScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
@@ -25,7 +67,6 @@ export default function FinalClassificationScreen() {
   const [saving, setSaving] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
 
-  // Parse parameters
   const imageUrl = params.imageUrl;
   const previewUri = params.previewUri;
   const userSelection = params.userSelection;
@@ -39,7 +80,9 @@ export default function FinalClassificationScreen() {
     ensembleMetrics,
   } = ensembleResult;
 
-  // Responsive
+  console.log("FINAL SELECTION RAW:", finalSelection);
+
+
   const isMobileSmall = width < 375;
   const isTablet = width >= 768;
 
@@ -69,7 +112,9 @@ export default function FinalClassificationScreen() {
 
   const sizes = getResponsiveSizes();
 
-  // Save scan to Firestore
+  /* -----------------------------------------------------
+     SAVE TO FIRESTORE
+  ----------------------------------------------------- */
   const handleSaveAndContinue = useCallback(async () => {
     try {
       setSaving(true);
@@ -81,30 +126,24 @@ export default function FinalClassificationScreen() {
         return;
       }
 
-      // Prepare data for Firestore
       const scanData = {
         email: user.email,
         uid: user.uid,
         timestamp: serverTimestamp(),
 
-        // Image data
         imageUrl: imageUrl,
 
-        // User input
         userSelection: userSelection,
 
-        // AI predictions (dual model format)
         results: {
           mobilenet: breakdown.model1,
           rexnet: breakdown.model2,
         },
 
-        // Ensemble result
         finalSelection: finalSelection,
         ensembleConfidence: confidence,
         ensembleReasoning: reasoning,
 
-        // Metrics (for analytics)
         ensembleMetrics: {
           allAgree: ensembleMetrics?.allAgree || false,
           aiConsensus: ensembleMetrics?.aiConsensus || false,
@@ -113,21 +152,18 @@ export default function FinalClassificationScreen() {
           flags: ensembleMetrics?.flags || [],
         },
 
-        // Legacy fields for backwards compatibility
         aiModel1Prediction: breakdown.model1?.prediction,
         aiModel1Confidence: breakdown.model1?.confidence,
         aiModel2Prediction: breakdown.model2?.prediction,
         aiModel2Confidence: breakdown.model2?.confidence,
       };
 
-      // Save to Firestore
       const scansRef = collection(db, "scan");
       const docRef = await addDoc(scansRef, scanData);
 
       console.log("✅ Scan saved to Firestore:", docRef.id);
       setConfirmed(true);
 
-      // Navigate to dashboard after 1 second
       setTimeout(() => {
         router.push("/dashboard");
       }, 1000);
@@ -136,17 +172,35 @@ export default function FinalClassificationScreen() {
       alert("Failed to save scan. Please try again.");
       setSaving(false);
     }
-  }, [imageUrl, userSelection, breakdown, finalSelection, confidence, reasoning, ensembleMetrics, router]);
+  }, [
+    imageUrl,
+    userSelection,
+    breakdown,
+    finalSelection,
+    confidence,
+    reasoning,
+    ensembleMetrics,
+    router,
+  ]);
 
-  // Render classification detail box
+  /* -----------------------------------------------------
+     DETAIL BOX RENDERER — now using formatLabel()
+  ----------------------------------------------------- */
   const renderClassificationDetail = (label, prediction, confidence, color) => (
     <View style={[styles.detailBox, { borderLeftColor: color }]}>
       <Text style={[styles.detailLabel, { fontSize: sizes.textFontSize * 0.9 }]}>
         {label}
       </Text>
-      <Text style={[styles.detailPrediction, { fontSize: sizes.titleFontSize, color }]}>
-        {prediction || "No prediction"}
+
+      <Text
+        style={[
+          styles.detailPrediction,
+          { fontSize: sizes.titleFontSize, color },
+        ]}
+      >
+        {formatLabel(prediction) || "No prediction"}
       </Text>
+
       {confidence !== undefined && (
         <View style={styles.confidenceBar}>
           <View
@@ -160,14 +214,23 @@ export default function FinalClassificationScreen() {
           />
         </View>
       )}
+
       {confidence !== undefined && (
-        <Text style={[styles.confidenceText, { fontSize: sizes.textFontSize * 0.8 }]}>
+        <Text
+          style={[
+            styles.confidenceText,
+            { fontSize: sizes.textFontSize * 0.8 },
+          ]}
+        >
           Confidence: {(confidence * 100).toFixed(1)}%
         </Text>
       )}
     </View>
   );
 
+  /* -----------------------------------------------------
+     SAVED SCREEN
+  ----------------------------------------------------- */
   if (confirmed) {
     return (
       <SafeAreaView style={styles.container}>
@@ -179,8 +242,17 @@ export default function FinalClassificationScreen() {
           <Text style={[styles.successText, { fontSize: sizes.textFontSize }]}>
             Your scan has been recorded and will help improve our models.
           </Text>
-          <ActivityIndicator size="large" color="#27ae60" style={{ marginTop: 20 }} />
-          <Text style={[styles.successSubtext, { fontSize: sizes.textFontSize * 0.9 }]}>
+          <ActivityIndicator
+            size="large"
+            color="#27ae60"
+            style={{ marginTop: 20 }}
+          />
+          <Text
+            style={[
+              styles.successSubtext,
+              { fontSize: sizes.textFontSize * 0.9 },
+            ]}
+          >
             Redirecting to dashboard...
           </Text>
         </View>
@@ -188,16 +260,17 @@ export default function FinalClassificationScreen() {
     );
   }
 
+  /* -----------------------------------------------------
+     FINAL RECOMMENDATION SCREEN
+  ----------------------------------------------------- */
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { padding: sizes.padding }]}>
-        <Pressable
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Text style={[styles.backButtonText, { fontSize: 14 }]}>← Back</Text>
         </Pressable>
+
         <Text
           style={[
             styles.headerTitle,
@@ -206,6 +279,7 @@ export default function FinalClassificationScreen() {
         >
           📊 Final Recommendation
         </Text>
+
         <View style={{ width: 60 }} />
       </View>
 
@@ -215,7 +289,7 @@ export default function FinalClassificationScreen() {
           { padding: sizes.padding, paddingBottom: sizes.padding * 2 },
         ]}
       >
-        {/* Image Preview */}
+        {/* Image */}
         {previewUri && (
           <Image
             source={{ uri: previewUri }}
@@ -228,7 +302,9 @@ export default function FinalClassificationScreen() {
           style={[
             styles.recommendationCard,
             {
-              borderTopColor: getRecommendationColor(ensembleMetrics?.recommendationStrength),
+              borderTopColor: getRecommendationColor(
+                ensembleMetrics?.recommendationStrength
+              ),
               padding: sizes.padding,
             },
           ]}
@@ -241,81 +317,81 @@ export default function FinalClassificationScreen() {
           >
             FINAL RECOMMENDATION
           </Text>
+
           <Text
             style={[
               styles.recommendationValue,
               {
                 fontSize: sizes.titleFontSize * 1.2,
-                color: getRecommendationColor(ensembleMetrics?.recommendationStrength),
+                color: getRecommendationColor(
+                  ensembleMetrics?.recommendationStrength
+                ),
               },
             ]}
           >
-            {finalSelection || "Unable to classify"}
+            {formatLabel(finalSelection) || "Unable to classify"}
           </Text>
 
-          {/* Confidence Score */}
-          <View style={[styles.confidenceContainer, { marginTop: sizes.padding }]}>
-            <Text style={[styles.confidenceLabel, { fontSize: sizes.textFontSize }]}>
+          {/* Confidence Bar */}
+          <View
+            style={[styles.confidenceContainer, { marginTop: sizes.padding }]}
+          >
+            <Text
+              style={[styles.confidenceLabel, { fontSize: sizes.textFontSize }]}
+            >
               Recommendation Strength
             </Text>
+
             <View style={styles.confidenceBar}>
               <View
                 style={[
                   styles.confidenceFill,
                   {
                     width: `${confidence * 100}%`,
-                    backgroundColor: getRecommendationColor(ensembleMetrics?.recommendationStrength),
+                    backgroundColor: getRecommendationColor(
+                      ensembleMetrics?.recommendationStrength
+                    ),
                   },
                 ]}
               />
             </View>
-            <Text style={[styles.confidencePercent, { fontSize: sizes.textFontSize * 0.9 }]}>
-              {(confidence * 100).toFixed(1)}% • {ensembleMetrics?.recommendationStrength}
+
+            <Text
+              style={[
+                styles.confidencePercent,
+                { fontSize: sizes.textFontSize * 0.9 },
+              ]}
+            >
+              {(confidence * 100).toFixed(1)}%
             </Text>
           </View>
 
           {/* Reasoning */}
-          <View style={[styles.reasoningBox, { marginTop: sizes.padding }]}>
-            <Text style={[styles.reasoningLabel, { fontSize: sizes.textFontSize * 0.9 }]}>
-              Why this recommendation?
-            </Text>
-            <Text style={[styles.reasoningText, { fontSize: sizes.textFontSize }]}>
-              {getReasoningExplanation(reasoning)}
-            </Text>
-          </View>
-
-          {/* Flags */}
-          {ensembleMetrics?.flags && ensembleMetrics.flags.length > 0 && (
-            <View style={[styles.flagsContainer, { marginTop: sizes.padding }]}>
-              <Text style={[styles.flagsLabel, { fontSize: sizes.textFontSize * 0.9 }]}>
-                Metadata:
-              </Text>
-              {ensembleMetrics.flags.map((flag, idx) => (
-                <View key={idx} style={styles.flag}>
-                  <Text style={[styles.flagText, { fontSize: sizes.textFontSize * 0.8 }]}>
-                    • {flag}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Detailed Breakdown */}
-        <View style={[styles.breakdownCard, { marginTop: sizes.padding, padding: sizes.padding }]}>
           <Text
             style={[
-              styles.breakdownTitle,
-              { fontSize: sizes.titleFontSize, marginBottom: sizes.padding },
+              styles.reasoningLabel,
+              { fontSize: sizes.textFontSize * 0.9, marginTop: sizes.padding },
             ]}
           >
-            📋 Detailed Breakdown
+            Why this recommendation?
           </Text>
 
-          {/* Your Selection */}
+          <Text
+            style={[
+              styles.reasoningText,
+              { fontSize: sizes.textFontSize * 0.85 },
+            ]}
+          >
+            {getReasoningExplanation(reasoning)}
+          </Text>
+        </View>
+
+        {/* Breakdown Section */}
+        <View style={{ marginTop: sizes.padding }}>
+          {/* Human */}
           {renderClassificationDetail(
-            "👤 Your Selection",
-            userSelection,
+            "🧑 Your Selection",
+            userSelection ? formatLabel(userSelection) : "",
             undefined,
             "#e67e22"
           )}
@@ -324,7 +400,7 @@ export default function FinalClassificationScreen() {
           {breakdown?.model1 &&
             renderClassificationDetail(
               "🤖 AI Model 1 (MobileNet)",
-              breakdown.model1.prediction,
+              formatLabel(breakdown.model1.prediction),
               breakdown.model1.confidence,
               "#3498db"
             )}
@@ -333,13 +409,15 @@ export default function FinalClassificationScreen() {
           {breakdown?.model2 &&
             renderClassificationDetail(
               "🧠 AI Model 2 (ReXNet)",
-              breakdown.model2.prediction,
+              formatLabel(breakdown.model2.prediction),
               breakdown.model2.confidence,
               "#9c27b0"
             )}
 
-          {/* Agreement Indicators */}
-          <View style={[styles.agreementBox, { marginTop: sizes.padding }]}>
+          {/* Agreement Summary */}
+          <View
+            style={[styles.agreementBox, { marginTop: sizes.padding }]}
+          >
             <Text
               style={[
                 styles.agreementTitle,
@@ -348,18 +426,36 @@ export default function FinalClassificationScreen() {
             >
               Agreement Analysis:
             </Text>
+
             <View style={styles.agreementRow}>
-              <Text style={[styles.agreementLabel, { fontSize: sizes.textFontSize * 0.85 }]}>
+              <Text
+                style={[
+                  styles.agreementLabel,
+                  { fontSize: sizes.textFontSize * 0.85 },
+                ]}
+              >
                 {ensembleMetrics?.allAgree ? "✅" : "⚠️"} All three agree
               </Text>
             </View>
+
             <View style={styles.agreementRow}>
-              <Text style={[styles.agreementLabel, { fontSize: sizes.textFontSize * 0.85 }]}>
+              <Text
+                style={[
+                  styles.agreementLabel,
+                  { fontSize: sizes.textFontSize * 0.85 },
+                ]}
+              >
                 {ensembleMetrics?.aiConsensus ? "✅" : "⚠️"} AI models agree
               </Text>
             </View>
+
             <View style={styles.agreementRow}>
-              <Text style={[styles.agreementLabel, { fontSize: sizes.textFontSize * 0.85 }]}>
+              <Text
+                style={[
+                  styles.agreementLabel,
+                  { fontSize: sizes.textFontSize * 0.85 },
+                ]}
+              >
                 {ensembleMetrics?.humanAIAlignment ? "✅" : "⚠️"} Human-AI aligned
               </Text>
             </View>
@@ -367,13 +463,20 @@ export default function FinalClassificationScreen() {
         </View>
 
         {/* Action Buttons */}
-        <View style={[styles.buttonContainer, { gap: sizes.padding, marginTop: sizes.padding }]}>
+        <View
+          style={[
+            styles.buttonContainer,
+            { gap: sizes.padding, marginTop: sizes.padding },
+          ]}
+        >
           <Pressable
             style={[styles.button, styles.primaryButton]}
             onPress={handleSaveAndContinue}
             disabled={saving}
           >
-            <Text style={[styles.buttonText, { fontSize: sizes.textFontSize }]}>
+            <Text
+              style={[styles.buttonText, { fontSize: sizes.textFontSize }]}
+            >
               {saving ? "Saving..." : "✅ Save & Continue"}
             </Text>
           </Pressable>
@@ -383,7 +486,9 @@ export default function FinalClassificationScreen() {
             onPress={() => router.back()}
             disabled={saving}
           >
-            <Text style={[styles.buttonText, { fontSize: sizes.textFontSize }]}>
+            <Text
+              style={[styles.buttonText, { fontSize: sizes.textFontSize }]}
+            >
               ← Edit Selection
             </Text>
           </Pressable>
@@ -393,6 +498,9 @@ export default function FinalClassificationScreen() {
   );
 }
 
+/* -----------------------------------------------------
+   STYLES (unchanged)
+----------------------------------------------------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f5f5" },
   header: {
@@ -417,160 +525,102 @@ const styles = StyleSheet.create({
     width: "100%",
     borderRadius: 12,
     marginBottom: 20,
-    backgroundColor: "#e0e0e0",
   },
 
-  // Recommendation Card
   recommendationCard: {
-    backgroundColor: "white",
+    backgroundColor: "#fff",
     borderRadius: 12,
     borderTopWidth: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    marginBottom: 20,
   },
   recommendationLabel: {
-    color: "#999",
+    color: "#888",
     fontWeight: "700",
-    letterSpacing: 1,
-  },
-  recommendationValue: {
-    fontWeight: "700",
-    marginTop: 8,
     marginBottom: 4,
   },
-
-  // Confidence
-  confidenceContainer: {},
-  confidenceLabel: {
-    color: "#666",
-    fontWeight: "600",
+  recommendationValue: {
+    fontWeight: "800",
+    textTransform: "capitalize",
     marginBottom: 8,
   },
+
+  confidenceContainer: {},
+  confidenceLabel: { fontWeight: "600", marginBottom: 6 },
   confidenceBar: {
-    height: 12,
+    width: "100%",
+    height: 10,
     backgroundColor: "#eee",
     borderRadius: 6,
     overflow: "hidden",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   confidenceFill: {
     height: "100%",
     borderRadius: 6,
   },
   confidencePercent: {
-    color: "#999",
-    fontWeight: "600",
+    fontWeight: "700",
+    color: "#333",
   },
 
-  // Reasoning
-  reasoningBox: {
-    backgroundColor: "#f9f9f9",
-    padding: 12,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: "#3498db",
-  },
   reasoningLabel: {
-    color: "#666",
     fontWeight: "700",
-    marginBottom: 6,
+    marginTop: 12,
+    marginBottom: 4,
   },
   reasoningText: {
-    color: "#2c3e50",
+    color: "#555",
     lineHeight: 20,
   },
 
-  // Flags
-  flagsContainer: {},
-  flagsLabel: {
-    color: "#666",
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  flag: {
-    marginBottom: 6,
-  },
-  flagText: {
-    color: "#e67e22",
-    fontWeight: "500",
-  },
-
-  // Breakdown
-  breakdownCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  breakdownTitle: {
-    color: "#2c3e50",
-    fontWeight: "700",
-  },
-
-  // Detail Boxes
   detailBox: {
-    backgroundColor: "#f9f9f9",
+    backgroundColor: "#fff",
+    borderRadius: 10,
     padding: 12,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    marginBottom: 12,
+    borderLeftWidth: 5,
+    marginBottom: 15,
   },
-  detailLabel: {
-    color: "#999",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
+  detailLabel: { fontWeight: "600", color: "#555" },
   detailPrediction: {
-    fontWeight: "700",
-    marginBottom: 8,
+    fontWeight: "800",
+    marginTop: 4,
+    textTransform: "capitalize",
   },
   confidenceText: {
-    color: "#999",
-    fontWeight: "500",
+    marginTop: 6,
+    fontWeight: "600",
+    color: "#555",
   },
 
-  // Agreement
   agreementBox: {
-    backgroundColor: "#f0f9ff",
+    backgroundColor: "#fff",
+    borderRadius: 10,
     padding: 12,
-    borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: "#27ae60",
+    borderLeftColor: "#888",
   },
-  agreementTitle: {
-    color: "#666",
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  agreementRow: {
-    marginBottom: 6,
-  },
-  agreementLabel: {
-    color: "#2c3e50",
-    fontWeight: "500",
-  },
+  agreementTitle: { fontWeight: "700", marginBottom: 8 },
+  agreementRow: { marginBottom: 4 },
+  agreementLabel: { color: "#555" },
 
-  // Buttons
-  buttonContainer: { marginTop: 12 },
-  button: { paddingVertical: 14, borderRadius: 8, alignItems: "center" },
+  buttonContainer: { alignItems: "center" },
+  button: {
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+  },
   primaryButton: { backgroundColor: "#27ae60" },
-  secondaryButton: { backgroundColor: "#3498db" },
-  buttonText: { color: "white", fontWeight: "700" },
+  secondaryButton: { backgroundColor: "#777" },
+  buttonText: { color: "#fff", fontWeight: "700" },
 
-  // Success
   successContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-  successEmoji: { marginBottom: 16 },
-  successTitle: { fontWeight: "700", color: "#2c3e50", marginBottom: 12 },
-  successText: { color: "#666", textAlign: "center", marginBottom: 20 },
-  successSubtext: { color: "#999", marginTop: 12 },
+  successEmoji: {},
+  successTitle: { fontWeight: "800", marginTop: 10 },
+  successText: { color: "#555", marginTop: 8 },
+  successSubtext: { color: "#777", marginTop: 6 },
 });

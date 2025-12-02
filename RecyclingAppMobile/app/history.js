@@ -3,11 +3,8 @@ import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import { useCallback, useState, useEffect } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Image,
-  Orientation,
-  Platform,
   Pressable,
   RefreshControl,
   SafeAreaView,
@@ -17,6 +14,46 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { auth, db } from "./firebaseInit";
+
+/** --------------------------------------
+ * NORMALIZE LABELS
+ * Converts "paper_", "paper_waste", "Paper Waste"
+ * → "Paper"
+ ---------------------------------------*/
+const cleanLabel = (label) => {
+  if (!label) return "Unknown";
+
+  return label
+    .toLowerCase()
+    .replace(/_/g, " ")           // underscores → space
+    .replace(/-/g, " ")           // hyphens → space
+    .replace(/\bwaste\b/gi, "")   // remove "waste"
+    .replace(/\bglass\b/gi, "")   // remove "glass"
+    .replace(/\s+/g, " ")         // collapse multiple spaces
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase()); // capitalize words
+};
+
+/** --------------------------------------
+ * TIMESTAMP PARSER
+ * Supports Firestore Timestamp objects and strings
+ ---------------------------------------*/
+const formatTimestamp = (ts) => {
+  if (!ts) return "Unknown";
+
+  // Case 1: Firestore Timestamp object
+  if (typeof ts === "object" && ts.seconds) {
+    return new Date(ts.seconds * 1000).toLocaleString();
+  }
+
+  // Case 2: Standard string or ISO timestamp
+  const parsed = new Date(ts);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toLocaleString();
+  }
+
+  return "Unknown";
+};
 
 export default function HistoryScreen() {
   const router = useRouter();
@@ -29,144 +66,62 @@ export default function HistoryScreen() {
     width > height ? "landscape" : "portrait"
   );
 
-  // Track orientation changes
+  // Orientation changes
   useEffect(() => {
     const isLandscape = width > height;
     setOrientation(isLandscape ? "landscape" : "portrait");
   }, [width, height]);
 
-  // Responsive values
   const isLandscape = orientation === "landscape";
-  const isMobileSmall = width < 375;
   const isTablet = width >= 768;
 
-  // Calculate responsive sizes
-  const getResponsiveSizes = () => {
-    let headerFontSize = 18;
-    let titleFontSize = 16;
-    let textFontSize = 13;
-    let imageHeight = 200;
-    let cardMargin = 12;
-    let padding = 12;
-
-    if (isMobileSmall) {
-      headerFontSize = 16;
-      titleFontSize = 14;
-      textFontSize = 12;
-      imageHeight = 150;
-      cardMargin = 8;
-      padding = 10;
-    } else if (isTablet) {
-      headerFontSize = 24;
-      titleFontSize = 18;
-      textFontSize = 15;
-      imageHeight = 300;
-      cardMargin = 16;
-      padding = 16;
-    }
-
-    if (isLandscape && !isTablet) {
-      imageHeight = height * 0.4;
-    }
-
-    return {
-      headerFontSize,
-      titleFontSize,
-      textFontSize,
-      imageHeight,
-      cardMargin,
-      padding,
-    };
-  };
-
-  const sizes = getResponsiveSizes();
-
-  const parseTimestamp = (ts) => {
-    try {
-      if (!ts) return "Unknown date";
-      const date = new Date(ts);
-      return date.toLocaleDateString() + " " + date.toLocaleTimeString();
-    } catch {
-      return ts;
-    }
-  };
-
+  /** --------------------------------------
+   * FETCH HISTORY FROM FIRESTORE
+   ---------------------------------------*/
   const fetchHistory = useCallback(async () => {
     try {
       setError(null);
       setLoading(true);
-      const user = auth.currentUser;
 
+      const user = auth.currentUser;
       if (!user) {
         console.log("❌ No user logged in");
         setLoading(false);
         return;
       }
 
-      console.log("🔍 Fetching history for user email:", user.email);
-
       const scansRef = collection(db, "scan");
+      let q;
 
       try {
-        const q = query(
+        // Try orderBy first
+        q = query(
           scansRef,
           where("email", "==", user.email),
           orderBy("timestamp", "desc")
         );
 
-        const querySnapshot = await getDocs(q);
-        console.log("✅ Total scans found (with orderBy):", querySnapshot.size);
+        const snapshot = await getDocs(q);
+        setHistoryData(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      } catch (err) {
+        console.log("⚠ orderBy failed, sorting manually");
 
-        const scans = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          console.log("📄 Scan document:", data);
-          scans.push({
-            id: doc.id,
-            ...data,
-          });
-        });
-
-        console.log("✅ Setting history data with", scans.length, "scans");
-        setHistoryData(scans);
-        setLoading(false);
-      } catch (orderByError) {
-        console.log(
-          "⚠️ OrderBy failed, using client-side sorting:",
-          orderByError.message
-        );
-
-        const q = query(scansRef, where("email", "==", user.email));
-        const querySnapshot = await getDocs(q);
-        console.log("✅ Total scans found (without orderBy):", querySnapshot.size);
-
-        const scans = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          console.log("📄 Scan document:", data);
-          scans.push({
-            id: doc.id,
-            ...data,
-          });
-        });
+        q = query(scansRef, where("email", "==", user.email));
+        const snapshot = await getDocs(q);
+        const scans = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 
         scans.sort((a, b) => {
-          const timeA = new Date(a.timestamp).getTime();
-          const timeB = new Date(b.timestamp).getTime();
-          return timeB - timeA;
+          const t1 = new Date(a.timestamp).getTime();
+          const t2 = new Date(b.timestamp).getTime();
+          return t2 - t1;
         });
 
-        console.log(
-          "✅ Setting history data with",
-          scans.length,
-          "scans (sorted client-side)"
-        );
         setHistoryData(scans);
-        setLoading(false);
       }
     } catch (err) {
       console.error("❌ Error fetching history:", err);
       setError(`Error loading history: ${err.message}`);
+    } finally {
       setLoading(false);
     }
   }, []);
@@ -177,328 +132,197 @@ export default function HistoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      console.log("🔄 History screen focused - refreshing data");
       fetchHistory();
     }, [fetchHistory])
   );
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = () => {
     setRefreshing(true);
     fetchHistory().then(() => setRefreshing(false));
-  }, [fetchHistory]);
+  };
+
+  /** --------------------------------------
+   * RENDER ONE CARD
+   ---------------------------------------*/
+  const renderItem = ({ item }) => {
+    const final = cleanLabel(item.finalSelection);
+    const human = cleanLabel(item.userSelection);
+    const m1 = cleanLabel(item.aiModel1Prediction);
+    const m2 = cleanLabel(item.aiModel2Prediction);
+
+    return (
+      <View
+        style={[
+          styles.card,
+          { width: isLandscape && !isTablet ? "48%" : "100%" },
+        ]}
+      >
+        {/* IMAGE */}
+        {item.imageUrl ? (
+          <Image
+            source={{ uri: item.imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <Text style={styles.placeholderText}>No Image</Text>
+          </View>
+        )}
+
+        {/* INFO */}
+        <View style={styles.infoContainer}>
+          <Text style={styles.finalTitle}>{final}</Text>
+
+          <Text style={styles.itemText}>
+            <Text style={styles.bold}>You:</Text> {human}
+          </Text>
+
+          <Text style={styles.itemText}>
+            <Text style={styles.bold}>Model 1:</Text> {m1} (
+            {(item.aiModel1Confidence * 100).toFixed(0)}%)
+          </Text>
+
+          <Text style={styles.itemText}>
+            <Text style={styles.bold}>Model 2:</Text> {m2} (
+            {(item.aiModel2Confidence * 100).toFixed(0)}%)
+          </Text>
+
+          <Text style={styles.itemText}>
+            <Text style={styles.bold}>Strength:</Text>{" "}
+            {item.ensembleMetrics?.recommendationStrength || "Unknown"}
+          </Text>
+
+          <Text style={styles.itemText}>
+            <Text style={styles.bold}>Date:</Text>{" "}
+            {formatTimestamp(item.timestamp)}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  /** -------------------------------------- */
+  /** UI STRUCTURE */
+  /** -------------------------------------- */
 
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#27ae60" />
-        <Text style={[styles.loadingText, { fontSize: sizes.textFontSize }]}>
-          Loading history...
-        </Text>
+        <Text style={styles.loadingText}>Loading history...</Text>
       </SafeAreaView>
     );
   }
 
-  const renderItem = ({ item }) => (
-    <View
-      style={[
-        styles.card,
-        {
-          marginBottom: sizes.cardMargin,
-          width: isLandscape && !isTablet ? "48%" : "100%",
-        },
-      ]}
-    >
-      {item.imageUrl ? (
-        <Image
-          source={{ uri: item.imageUrl }}
-          style={[styles.image, { height: sizes.imageHeight }]}
-          onError={(e) => {
-            console.log("❌ Image load error:", e.nativeEvent.error);
-          }}
-        />
-      ) : (
-        <View
-          style={[
-            styles.imagePlaceholder,
-            { height: sizes.imageHeight },
-          ]}
-        >
-          <Text style={[styles.placeholderText, { fontSize: sizes.textFontSize }]}>
-            No Image
-          </Text>
-        </View>
-      )}
-      <View style={[styles.infoContainer, { padding: sizes.padding }]}>
-        <Text
-          style={[
-            styles.itemTitle,
-            { fontSize: sizes.titleFontSize },
-          ]}
-        >
-          {item.biological
-            ? item.biological.charAt(0).toUpperCase() +
-              item.biological.slice(1)
-            : "Unknown"}
-        </Text>
-        <Text style={[styles.itemText, { fontSize: sizes.textFontSize }]}>
-          <Text style={styles.bold}>Classification:</Text>{" "}
-          {item.biological || "Unknown"}
-        </Text>
-        {item.confidence && (
-          <Text style={[styles.itemText, { fontSize: sizes.textFontSize }]}>
-            <Text style={styles.bold}>Confidence:</Text>{" "}
-            {(item.confidence * 100).toFixed(1)}%
-          </Text>
-        )}
-        <Text style={[styles.itemText, { fontSize: sizes.textFontSize }]}>
-          <Text style={styles.bold}>Points:</Text> {item.points || 10}
-        </Text>
-        <Text style={[styles.itemText, { fontSize: sizes.textFontSize }]}>
-          <Text style={styles.bold}>Date:</Text> {parseTimestamp(item.timestamp)}
-        </Text>
-        {item.email && (
-          <Text style={[styles.itemText, { fontSize: sizes.textFontSize }]}>
-            <Text style={styles.bold}>Email:</Text> {item.email}
-          </Text>
-        )}
-      </View>
-    </View>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with Back Button */}
-      <View
-        style={[
-          styles.header,
-          {
-            padding: sizes.padding,
-            paddingHorizontal: sizes.padding * 1.33,
-          },
-        ]}
-      >
+      {/* HEADER */}
+      <View style={styles.header}>
         <Pressable
           onPress={() => router.push("/dashboard")}
-          style={[
-            styles.backButton,
-            { minHeight: isTablet ? 48 : 40, paddingHorizontal: sizes.padding },
-          ]}
+          style={styles.backButton}
         >
-          <Text style={[styles.backButtonText, { fontSize: sizes.textFontSize }]}>
-            ← Back
-          </Text>
+          <Text style={styles.backButtonText}>← Back</Text>
         </Pressable>
-        <Text
-          style={[
-            styles.headerTitle,
-            { fontSize: sizes.headerFontSize, flex: 1, marginHorizontal: 12 },
-          ]}
-        >
-          📜 History
-        </Text>
+
+        <Text style={styles.headerTitle}>📜 History</Text>
         <View style={{ width: 60 }} />
       </View>
 
-      {/* Error Message */}
-      {error && (
-        <View
-          style={[
-            styles.errorContainer,
-            { margin: sizes.padding, padding: sizes.padding },
-          ]}
-        >
-          <Text style={[styles.errorText, { fontSize: sizes.textFontSize }]}>
-            {error}
-          </Text>
-          <Pressable
-            onPress={() => fetchHistory()}
-            style={styles.retryButton}
-          >
-            <Text
-              style={[styles.retryButtonText, { fontSize: sizes.textFontSize }]}
-            >
-              Retry
-            </Text>
-          </Pressable>
-        </View>
-      )}
-
-      {/* History List */}
-      {historyData.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={[styles.noDataText, { fontSize: sizes.titleFontSize }]}>
-            📭 No scans yet
-          </Text>
-          <Text
-            style={[styles.noDataSubtext, { fontSize: sizes.textFontSize }]}
-          >
-            Start scanning to see your history!
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.listContainer}>
-          <Text
-            style={[
-              styles.scanCountText,
-              {
-                fontSize: sizes.textFontSize,
-                padding: sizes.padding,
-                paddingLeft: sizes.padding * 1.33,
-              },
-            ]}
-          >
-            Total Scans: {historyData.length}
-          </Text>
-          <FlatList
-            data={historyData}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            contentContainerStyle={[
-              styles.listContent,
-              {
-                padding: sizes.padding,
-                paddingBottom: sizes.padding * 2,
-              },
-            ]}
-            numColumns={isLandscape && !isTablet ? 2 : 1}
-            columnWrapperStyle={
-              isLandscape && !isTablet
-                ? { justifyContent: "space-between" }
-                : null
-            }
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor="#27ae60"
-              />
-            }
-            scrollEnabled={true}
-          />
-        </View>
-      )}
+      {/* LIST */}
+      <FlatList
+        data={historyData}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        contentContainerStyle={styles.listContent}
+        numColumns={isLandscape && !isTablet ? 2 : 1}
+        columnWrapperStyle={
+          isLandscape && !isTablet ? { justifyContent: "space-between" } : null
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      />
     </SafeAreaView>
   );
 }
 
+/** --------------------------------------
+ * STYLES
+ ---------------------------------------*/
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f5f5f5",
-  },
+  container: { flex: 1, backgroundColor: "#f5f5f5" },
+
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
   },
-  loadingText: {
-    marginTop: 12,
-    color: "#666",
-  },
+  loadingText: { marginTop: 10, color: "#666" },
+
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    padding: 14,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#ddd",
   },
   backButton: {
-    paddingVertical: 10,
     backgroundColor: "#27ae60",
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  backButtonText: {
-    color: "white",
-    fontWeight: "700",
-  },
-  headerTitle: {
-    fontWeight: "bold",
-    color: "#333",
-    textAlign: "center",
-  },
-  errorContainer: {
-    backgroundColor: "#fee",
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: "#e74c3c",
-  },
-  errorText: {
-    color: "#c0392b",
-    marginBottom: 8,
-  },
-  retryButton: {
-    backgroundColor: "#e74c3c",
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    alignSelf: "flex-start",
+    paddingHorizontal: 14,
+    borderRadius: 8,
   },
-  retryButtonText: {
-    color: "white",
-    fontWeight: "700",
-  },
-  emptyContainer: {
+  backButtonText: { color: "#fff", fontWeight: "700" },
+  headerTitle: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  noDataText: {
     textAlign: "center",
-    color: "#666",
-    marginBottom: 8,
-    fontWeight: "600",
-  },
-  noDataSubtext: {
-    textAlign: "center",
-    color: "#999",
-  },
-  listContainer: {
-    flex: 1,
-  },
-  scanCountText: {
     fontWeight: "700",
-    color: "#27ae60",
-    backgroundColor: "#e8f8f5",
+    fontSize: 20,
+    color: "#333",
   },
-  listContent: {},
+
+  listContent: { padding: 12 },
+
   card: {
     backgroundColor: "#fff",
     borderRadius: 10,
     overflow: "hidden",
+    marginBottom: 16,
+    elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
   },
+
   image: {
     width: "100%",
-    backgroundColor: "#f0f0f0",
+    height: 220,
+    backgroundColor: "#eee",
   },
   imagePlaceholder: {
-    width: "100%",
-    backgroundColor: "#f0f0f0",
+    height: 220,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#eee",
   },
-  placeholderText: {
-    color: "#999",
-  },
-  infoContainer: {},
-  itemTitle: {
+  placeholderText: { color: "#999" },
+
+  infoContainer: { padding: 12 },
+
+  finalTitle: {
+    fontSize: 18,
     fontWeight: "700",
     color: "#27ae60",
-    marginBottom: 8,
+    marginBottom: 6,
   },
+
   itemText: {
+    fontSize: 14,
     color: "#555",
     marginBottom: 4,
-    lineHeight: 18,
   },
   bold: {
     fontWeight: "700",

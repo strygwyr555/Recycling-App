@@ -162,12 +162,17 @@ const createConsensusResult = (
     confidence: Math.min(Math.max(confidence, 0), 1),
     reasoning: reason,
     ensembleMetrics: {
-      allAgree: breakdown.model1.prediction === breakdown.model2.prediction && 
-                breakdown.model2.prediction === breakdown.human,
-      aiConsensus: breakdown.model1.prediction === breakdown.model2.prediction,
-      humanAIAlignment: 
+      allAgree:
+        breakdown.model1.prediction === breakdown.model2.prediction &&
+        breakdown.model2.prediction === breakdown.human,
+
+      aiConsensus:
+        breakdown.model1.prediction === breakdown.model2.prediction,
+
+      humanAIAlignment:
         breakdown.human === breakdown.model1.prediction ||
         breakdown.human === breakdown.model2.prediction,
+
       recommendationStrength: strength,
       flags,
     },
@@ -201,15 +206,15 @@ const createAmbiguousResult = (reason, flags) => {
   };
 };
 
-// ===== HELPER: Normalize waste type labels =====
+// ===== FIXED NORMALIZATION — consistent label formatting =====
 const normalizeLabel = (label) => {
   if (!label) return null;
+
   return label
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, " ")
-    .replace(/waste|wastes/gi, "")
-    .trim();
+    .replace(/[- ]+/g, "_")   // convert hyphens/spaces → underscores
+    .replace(/_+$/, "");      // remove trailing underscores
 };
 
 // ===== HELPER: Get reasoning explanation =====
@@ -234,10 +239,10 @@ export const getReasoningExplanation = (reason) => {
 // ===== HELPER: Get recommendation color =====
 export const getRecommendationColor = (strength) => {
   const colors = {
-    [RECOMMENDATION_STRENGTH.VERY_HIGH]: "#27ae60", // Green
-    [RECOMMENDATION_STRENGTH.HIGH]: "#2ecc71", // Light green
-    [RECOMMENDATION_STRENGTH.MODERATE]: "#f39c12", // Orange
-    [RECOMMENDATION_STRENGTH.LOW]: "#e74c3c", // Red
+    [RECOMMENDATION_STRENGTH.VERY_HIGH]: "#27ae60",
+    [RECOMMENDATION_STRENGTH.HIGH]: "#2ecc71",
+    [RECOMMENDATION_STRENGTH.MODERATE]: "#f39c12",
+    [RECOMMENDATION_STRENGTH.LOW]: "#e74c3c",
   };
   return colors[strength] || "#95a5a6";
 };
