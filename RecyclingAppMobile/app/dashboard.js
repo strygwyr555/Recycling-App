@@ -134,8 +134,9 @@ export default function DashboardScreen() {
         const data = doc.data();
         totalPoints += data.points || 10;
 
-        if (data.biological) {
-          itemTypes[data.biological] = (itemTypes[data.biological] || 0) + 1;
+        const wasteType = data.finalSelection || data.biological || data.userSelection;
+        if (wasteType) {
+          itemTypes[wasteType] = (itemTypes[wasteType] || 0) + 1;
         }
       });
 

@@ -78,7 +78,7 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.logo}>♻️ RecycleAI</Text>
+        <Text style={styles.logo}>♻️ Recycling AI</Text>
         <Text style={styles.title}>Login to Your Account</Text>
         <Text style={styles.tip}>
           Join us in making the world cleaner, one item at a time!

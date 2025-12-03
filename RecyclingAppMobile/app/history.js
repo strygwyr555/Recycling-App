@@ -1,5 +1,5 @@
 import { useRouter, useFocusEffect } from "expo-router";
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, addDoc, serverTimestamp } from "firebase/firestore";
 import { useCallback, useState, useEffect } from "react";
 import {
   ActivityIndicator,
@@ -12,16 +12,23 @@ import {
   Text,
   View,
   useWindowDimensions,
+  Alert,
 } from "react-native";
 import { auth, db } from "./firebaseInit";
 
 /** --------------------------------------
  * NORMALIZE LABELS
- * Converts "paper_", "paper_waste", "Paper Waste"
- * → "Paper"
+ * Converts "e_waste", "E-waste" → "E-waste"
+ * Converts "paper_waste" → "Paper"
+ * etc.
  ---------------------------------------*/
 const cleanLabel = (label) => {
   if (!label) return "Unknown";
+
+  // Special case for e-waste
+  if (label.toLowerCase().includes("e_waste") || label.toLowerCase().includes("e-waste")) {
+    return "E-waste";
+  }
 
   return label
     .toLowerCase()
@@ -53,6 +60,21 @@ const formatTimestamp = (ts) => {
   }
 
   return "Unknown";
+};
+
+const WASTE_TYPE_LABELS = {
+  "metal_waste": "Metal Waste",
+  "organic_waste": "Organic Waste",
+  "paper_waste": "Paper Waste",
+  "plastic_waste": "Plastic Waste",
+  "battery_waste": "Battery Waste",
+  "white_glass": "White Glass",
+  "green_glass": "Green Glass",
+  "brown_glass": "Brown Glass",
+  "cardboard_waste": "Cardboard Waste",
+  "clothing_waste": "Clothing Waste",
+  "e_waste": "E-waste",
+  "trash": "Trash",
 };
 
 export default function HistoryScreen() {
@@ -142,6 +164,25 @@ export default function HistoryScreen() {
   };
 
   /** --------------------------------------
+   * USER FEEDBACK HANDLER
+   ---------------------------------------*/
+  const handleUserFeedback = async (scanId, isCorrect) => {
+    try {
+      const feedbackRef = collection(db, "feedback");
+      await addDoc(feedbackRef, {
+        scanId,
+        userFeedback: isCorrect ? "CORRECT" : "INCORRECT",
+        timestamp: serverTimestamp(),
+        email: auth.currentUser?.email,
+      });
+      
+      Alert.alert("Thank you!", "Your feedback helps improve accuracy");
+    } catch (err) {
+      console.error("Error saving feedback:", err);
+    }
+  };
+
+  /** --------------------------------------
    * RENDER ONE CARD
    ---------------------------------------*/
   const renderItem = ({ item }) => {
@@ -149,6 +190,8 @@ export default function HistoryScreen() {
     const human = cleanLabel(item.userSelection);
     const m1 = cleanLabel(item.aiModel1Prediction);
     const m2 = cleanLabel(item.aiModel2Prediction);
+    const wasteType = item.finalSelection;
+    const displayLabel = WASTE_TYPE_LABELS[wasteType] || wasteType;
 
     return (
       <View
@@ -197,6 +240,28 @@ export default function HistoryScreen() {
             <Text style={styles.bold}>Date:</Text>{" "}
             {formatTimestamp(item.timestamp)}
           </Text>
+
+          {/* DISPLAY WASTE TYPE */}
+          <Text style={styles.itemText}>
+            <Text style={styles.bold}>Waste Type:</Text> {displayLabel}
+          </Text>
+        </View>
+
+        {/* USER FEEDBACK BUTTONS */}
+        <View style={styles.feedbackContainer}>
+          <Pressable
+            onPress={() => handleUserFeedback(item.id, true)}
+            style={styles.correctButton}
+          >
+            <Text>✓ Correct</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => handleUserFeedback(item.id, false)}
+            style={styles.incorrectButton}
+          >
+            <Text>✗ Incorrect</Text>
+          </Pressable>
         </View>
       </View>
     );
@@ -327,5 +392,29 @@ const styles = StyleSheet.create({
   bold: {
     fontWeight: "700",
     color: "#2c3e50",
+  },
+
+  feedbackContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#ddd",
+  },
+  correctButton: {
+    backgroundColor: "#d4edda",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#c3e6cb",
+  },
+  incorrectButton: {
+    backgroundColor: "#f8d7da",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#f5c6cb",
   },
 });
