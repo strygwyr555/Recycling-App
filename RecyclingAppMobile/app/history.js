@@ -23,12 +23,17 @@ import { auth, db } from "./firebaseInit";
 const cleanLabel = (label) => {
   if (!label) return "Unknown";
 
-  return label
-    .toLowerCase()
+  // Normalize source string for checks
+  const lowered = String(label).toLowerCase().trim();
+
+  // Special-case: preserve 'E-Waste' (covers 'e_waste', 'e-waste', 'e waste')
+  if (/\be[_\s-]?waste\b/.test(lowered)) return "E-Waste";
+
+  return lowered
     .replace(/_/g, " ")           // underscores → space
     .replace(/-/g, " ")           // hyphens → space
-    .replace(/\bwaste\b/gi, "")   // remove "waste"
-    .replace(/\bglass\b/gi, "")   // remove "glass"
+    .replace(/\bwaste\b/gi, "")   // remove "waste" for labels like 'paper waste'
+    .replace(/\bglass\b/gi, "")   // remove "glass" for labels like 'white glass'
     .replace(/\s+/g, " ")         // collapse multiple spaces
     .trim()
     .replace(/\b\w/g, (c) => c.toUpperCase()); // capitalize words
@@ -226,7 +231,7 @@ export default function HistoryScreen() {
           <Text style={styles.backButtonText}>← Back</Text>
         </Pressable>
 
-        <Text style={styles.headerTitle}>📜 History</Text>
+        <Text style={styles.headerTitle}>History</Text>
         <View style={{ width: 60 }} />
       </View>
 

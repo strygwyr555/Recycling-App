@@ -8,7 +8,7 @@ export default function HomeScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
         <Text style={styles.logo}>♻️</Text>
-        <Text style={styles.title}>RecycleAI</Text>
+        <Text style={styles.title}>Recycle AI</Text>
         <Text style={styles.subtitle}>Making Recycling Smart & Easy</Text>
       </View>
 

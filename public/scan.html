@@ -4,127 +4,172 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scan - Recycling Assistant</title>
+    <title>Scan Item - Recycling Assistant</title>
+
     <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
 <body>
     <div class="dashboard-container">
-        <!-- Sidebar Navigation -->
+
+        <!-- Sidebar -->
         <div id="sidebar"></div>
 
+        <!-- Main content -->
         <main class="main-content">
+
             <header class="dashboard-header">
-                <h1>Scan Items</h1>
+                <h1>Scan Recyclable Item</h1>
             </header>
 
-            <div class="camera-section card">
-                <h2>Scan Recyclable Item</h2>
-                <div class="camera-wrapper">
-                    <video id="cameraFeed" autoplay playsinline></video>
-                    <div class="camera-overlay">
-                        <div class="scan-frame"></div>
-                    </div>
-                    <canvas id="photoCanvas" style="display:none;"></canvas>
-                    <img id="capturedImage" style="display:none;">
-                    <div class="loading-indicator" style="display:none;">
-                        <div class="spinner"></div>
-                        <p>Starting camera...</p>
-                    </div>
-                    <div id="cameraError" class="error-message" style="display:none;">
-                        <p></p>
-                    </div>
-                    <div id="result" class="result-container" style="display:none;">
-                        <h3>Scan Result</h3>
-                        <div id="classificationResult" class="prediction-result"></div>
-                        <div class="recycling-info">
-                            <div class="bin-info">
-                                <i class="fas fa-trash-alt"></i>
-                                <span id="binType">Bin Type: </span>
-                            </div>
-                            <div class="material-info">
-                                <i class="fas fa-info-circle"></i>
-                                <span id="materialType">Material: </span>
-                            </div>
-                            <div class="recycling-tip">
-                                <i class="fas fa-lightbulb"></i>
-                                <span id="recyclingTip">Tip: </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <!-- CAMERA SECTION -->
+            <div id="cameraSection" class="card">
+                <h2>Capture or Upload</h2>
+
+                <video id="cameraFeed" autoplay playsinline></video>
+                <canvas id="photoCanvas" style="display:none;"></canvas>
+                <img id="capturedImage" style="display:none; max-width:100%; border-radius:10px;" />
 
                 <div class="camera-controls">
-                    <button id="capturePhoto" class="btn-primary" style="display:none;">
-                        <i class="fas fa-camera"></i>
-                        <span class="btn-text">Capture</span>
+                    <button id="capturePhoto" class="btn-primary">
+                        <i class="fas fa-camera"></i> Capture
                     </button>
-                    <button id="retakePhoto" class="btn-secondary" style="display:none;">
-                        <i class="fas fa-redo"></i>
-                        <span class="btn-text">Retake</span>
-                    </button>
-                    <button id="classifyButton" class="btn-primary" style="display:none;">
-                        <i class="fas fa-search"></i>
-                        <span class="btn-text">Classify</span>
-                    </button>
-                    <input type="file" id="uploadFileInput" accept="image/*" style="display:none;">
-                    <button id="uploadFileButton" class="btn-primary">
-                        <i class="fas fa-upload"></i>
-                        <span class="btn-text">Upload from PC</span>
-                    </button>
-                    <div id="confidenceMeter" style="display:none;">
-                        <div class="confidence-bar">
-                            <div class="confidence-fill" style="width:0%"></div>
-                        </div>
-                        <span class="confidence-text">0% confidence</span>
-                    </div>
-                </div>
 
-                <div class="classification-display card" id="classificationDisplay"
-                    style="display:none; margin-top:2rem;">
-                    <h3>Classification Result</h3>
-                    <div id="classificationInfo"></div>
+                    <input type="file" id="uploadFileInput" accept="image/*" style="display:none;">
+                    <button id="uploadFileButton" class="btn-secondary">
+                        <i class="fas fa-upload"></i> Upload
+                    </button>
+
+                    <button id="retakePhoto" class="btn-secondary" style="display:none;">
+                        <i class="fas fa-redo"></i> Retake
+                    </button>
                 </div>
             </div>
+
+            <!-- USER SELECTION -->
+            <div id="userSelectionCard" class="card" style="display:none;">
+                <h2>Your Selection</h2>
+                <img id="previewUserSelect" class="preview-img" />
+
+                <p>Select the correct category:</p>
+
+                <div id="categoryGrid" class="category-grid"></div>
+
+                <button id="confirmSelectionBtn" class="btn-primary" style="display:none;">
+                    Continue
+                </button>
+            </div>
+
+            <!-- AI PREDICTIONS + FINAL RECOMMENDATION -->
+            <div id="resultsSection" style="display:none;">
+
+                <div class="card results-card">
+                    <h2>Final Recommendation</h2>
+
+                    <!-- Single Image at Top -->
+                    <img id="previewResult" class="preview-img" />
+
+                    <!-- Final Recommendation - Prominent -->
+                    <div class="recommendation-box">
+                        <div class="recommendation-label">FINAL RECOMMENDATION</div>
+                        <div class="recommendation-value" id="finalPredictionLabel"></div>
+                        
+                        <div class="strength-container">
+                            <div class="strength-label">Recommendation Strength</div>
+                            <div class="strength-bar">
+                                <div class="strength-fill" id="strengthFill"></div>
+                            </div>
+                            <div class="strength-text" id="finalStrength"></div>
+                        </div>
+
+                        <div class="reasoning-section">
+                            <div class="reasoning-label">Why this recommendation?</div>
+                            <div class="reasoning-text" id="finalReason"></div>
+                        </div>
+                    </div>
+
+                    <!-- Your Selection -->
+                    <div class="detail-box your-selection">
+                        <div class="detail-label">Your Selection</div>
+                        <div class="detail-value"><span id="yourSelectionLabel"></span></div>
+                    </div>
+
+                    <!-- AI Predictions -->
+                    <div class="detail-box model1">
+                        <div class="detail-label">AI Model 1 (MobileNet)</div>
+                        <div class="detail-value"><span id="model1Label"></span></div>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" id="model1Fill"></div>
+                        </div>
+                        <div class="confidence-text" id="model1Confidence"></div>
+                    </div>
+
+                    <div class="detail-box model2">
+                        <div class="detail-label">AI Model 2 (RexNet)</div>
+                        <div class="detail-value"><span id="model2Label"></span></div>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" id="model2Fill"></div>
+                        </div>
+                        <div class="confidence-text" id="model2Confidence"></div>
+                    </div>
+
+                    <!-- Agreement Analysis -->
+                    <div class="agreement-box">
+                        <div class="agreement-title">Agreement Analysis:</div>
+                        <div class="agreement-row">
+                            <span id="allAgreeIndicator">⚠️</span> All three agree
+                        </div>
+                        <div class="agreement-row">
+                            <span id="aiConsensusIndicator">⚠️</span> AI models agree
+                        </div>
+                        <div class="agreement-row">
+                            <span id="humanAIIndicator">⚠️</span> Human-AI aligned
+                        </div>
+                    </div>
+
+                    <!-- Save Button -->
+                    <button id="saveScanBtn" class="btn-primary btn-save">
+                        <i class="fas fa-save"></i> Save & Continue
+                    </button>
+
+                </div>
+
+            </div>
+
         </main>
     </div>
 
-    <!-- Firebase Init and Logout -->
+    <!-- Firebase Init -->
     <script type="module">
-        import { app, auth } from './js/firebaseInit.js';
+        import { auth } from "./js/firebaseInit.js";
         import { signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
-        // Load sidebar and attach logout
+        // Load Sidebar
         fetch("sidebar.html")
-            .then(res => res.text())
-            .then(data => {
-                document.getElementById("sidebar").innerHTML = data;
+            .then(r => r.text())
+            .then(html => {
+                document.getElementById("sidebar").innerHTML = html;
 
-                // Display user email
                 const userEmailSpan = document.getElementById("userEmail");
                 auth.onAuthStateChanged(user => {
                     if (user) userEmailSpan.textContent = user.email;
                 });
 
-                // Attach logout
                 const logoutBtn = document.getElementById("logoutBtn");
                 if (logoutBtn) {
                     logoutBtn.addEventListener("click", async () => {
-                        try {
-                            await signOut(auth);
-                            window.location.href = "login.html";
-                        } catch (err) {
-                            console.error("Logout failed:", err);
-                        }
+                        await signOut(auth);
+                        window.location.href = "login.html";
                     });
                 }
             });
     </script>
 
-    <!-- Scan app script -->
+    <!-- Scan Logic -->
     <script type="module" src="js/scan.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+
 </body>
 
 </html>

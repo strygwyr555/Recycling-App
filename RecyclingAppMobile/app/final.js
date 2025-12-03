@@ -56,6 +56,16 @@ function formatLabel(raw) {
   return CLEAN_LABELS[clean] || raw;
 }
 
+/* Format strength: "VERY_HIGH" → "Very High" */
+function formatStrength(strength) {
+  if (!strength) return "Unknown";
+  
+  return strength
+    .split("_")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
 /* -----------------------------------------------------
    MAIN SCREEN
 ----------------------------------------------------- */
@@ -277,7 +287,7 @@ export default function FinalClassificationScreen() {
             { fontSize: sizes.headerFontSize, flex: 1, textAlign: "center" },
           ]}
         >
-          📊 Final Recommendation
+          Final Recommendation
         </Text>
 
         <View style={{ width: 60 }} />
@@ -390,7 +400,7 @@ export default function FinalClassificationScreen() {
         <View style={{ marginTop: sizes.padding }}>
           {/* Human */}
           {renderClassificationDetail(
-            "🧑 Your Selection",
+            "Your Selection",
             userSelection ? formatLabel(userSelection) : "",
             undefined,
             "#e67e22"
@@ -399,7 +409,7 @@ export default function FinalClassificationScreen() {
           {/* Model 1 */}
           {breakdown?.model1 &&
             renderClassificationDetail(
-              "🤖 AI Model 1 (MobileNet)",
+              "AI Model 1 (MobileNet)",
               formatLabel(breakdown.model1.prediction),
               breakdown.model1.confidence,
               "#3498db"
@@ -408,7 +418,7 @@ export default function FinalClassificationScreen() {
           {/* Model 2 */}
           {breakdown?.model2 &&
             renderClassificationDetail(
-              "🧠 AI Model 2 (ReXNet)",
+              "AI Model 2 (ReXNet)",
               formatLabel(breakdown.model2.prediction),
               breakdown.model2.confidence,
               "#9c27b0"
@@ -434,7 +444,7 @@ export default function FinalClassificationScreen() {
                   { fontSize: sizes.textFontSize * 0.85 },
                 ]}
               >
-                {ensembleMetrics?.allAgree ? "✅" : "⚠️"} All three agree
+                {ensembleMetrics?.allAgree ? "✅" : "❌"} All three agree
               </Text>
             </View>
 
@@ -445,7 +455,7 @@ export default function FinalClassificationScreen() {
                   { fontSize: sizes.textFontSize * 0.85 },
                 ]}
               >
-                {ensembleMetrics?.aiConsensus ? "✅" : "⚠️"} AI models agree
+                {ensembleMetrics?.aiConsensus ? "✅" : "❌"} AI models agree
               </Text>
             </View>
 
@@ -456,7 +466,7 @@ export default function FinalClassificationScreen() {
                   { fontSize: sizes.textFontSize * 0.85 },
                 ]}
               >
-                {ensembleMetrics?.humanAIAlignment ? "✅" : "⚠️"} Human-AI aligned
+                {ensembleMetrics?.humanAIAlignment ? "✅" : "❌"} Human-AI aligned
               </Text>
             </View>
           </View>

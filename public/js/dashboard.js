@@ -14,7 +14,7 @@ onAuthStateChanged(auth, async (user) => {
     if (userName) userName.textContent = user.displayName || user.email || 'User';
     if (userEmail) userEmail.textContent = user.email;
 
-    // Display total items recycled
+    // Display total items recycled and points (mirror mobile)
     await displayItemsRecycled(user.email);
 
     // Display recent scans
@@ -25,12 +25,24 @@ onAuthStateChanged(auth, async (user) => {
 // Display total items recycled for the current user
 async function displayItemsRecycled(email) {
   try {
-    const scansCol = collection(db, 'scans');
-    const scanSnapshot = await getDocs(scansCol);
+    const scansColA = collection(db, 'scan');
+    const scansColB = collection(db, 'scans');
 
-    const userImages = scanSnapshot.docs.filter(doc => doc.data().email === email).length;
-    const itemsRecycled = document.getElementById('itemsRecycled');
-    if (itemsRecycled) itemsRecycled.textContent = userImages;
+    const [snapA, snapB] = await Promise.all([getDocs(scansColA), getDocs(scansColB)]);
+
+    const docs = [
+      ...snapA.docs.map(d => d.data()),
+      ...snapB.docs.map(d => d.data())
+    ].filter(d => d && d.email === email);
+
+    const totalItems = docs.length;
+    const totalPoints = docs.reduce((acc, d) => acc + (d.points || 10), 0);
+
+    const itemsRecycledEl = document.getElementById('itemsRecycled');
+    const pointsEarnedEl = document.getElementById('pointsEarned');
+
+    if (itemsRecycledEl) itemsRecycledEl.textContent = totalItems;
+    if (pointsEarnedEl) pointsEarnedEl.textContent = totalPoints;
   } catch (error) {
     console.error('Error fetching recycled items:', error);
   }

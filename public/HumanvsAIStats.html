@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Human vs AI Statistics - Recycling AI Assistant</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <div id="sidebar"></div>
+
+        <main class="main-content">
+            <header class="dashboard-header">
+                <h1>Human vs AI Statistics</h1>
+            </header>
+
+            <div class="dashboard-grid">
+                <!-- Overview Cards -->
+                <div class="card" style="grid-column: 1 / -1;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div style="padding: 16px; background: #f9f9f9; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 8px;">Total Scans</div>
+                            <div style="font-size: 2rem; font-weight: 700; color: #27ae60;" id="totalScans">0</div>
+                        </div>
+                        <div style="padding: 16px; background: #f9f9f9; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 8px;">Human Accuracy</div>
+                            <div style="font-size: 2rem; font-weight: 700; color: #e67e22;" id="humanAcc">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Human vs Ensemble Accuracy Pie Chart -->
+                <div class="card" style="grid-column: 1 / -1;">
+                    <h3>Human vs Ensemble Accuracy</h3>
+                    <div id="pieChartContainer" style="margin-top: 1rem; display: flex; justify-content: center; max-width: 350px; margin-left: auto; margin-right: auto;">
+                        <canvas id="pieChart" style="max-width: 100%; height: auto;"></canvas>
+                    </div>
+                    <div id="accuracyBreakdown" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #eee; text-align: center;">
+                        <p style="margin: 0; color: #555;"><strong id="correctCount">0</strong> correct out of <strong id="totalCount">0</strong></p>
+                    </div>
+                </div>
+
+                <!-- Performance Metrics KPI -->
+                <div class="card" style="grid-column: 1 / -1; background: #f0f9ff;">
+                    <h3>Model Accuracy Comparison</h3>
+                    <div id="kpiGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; margin-top: 1rem;">
+                        <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #ddd; text-align: center;">
+                            <div style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 6px;">Model 1</div>
+                            <div style="font-size: 1.8rem; font-weight: 700; color: #3498db;" id="model1Acc">0%</div>
+                        </div>
+                        <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #ddd; text-align: center;">
+                            <div style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 6px;">Model 2</div>
+                            <div style="font-size: 1.8rem; font-weight: 700; color: #9c27b0;" id="model2Acc">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agreement Patterns -->
+                <div class="card" style="grid-column: 1 / -1;">
+                    <h3>Agreement Between Classifiers</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 1rem;">
+                        <div style="padding: 12px; background: #fff3cd; border-radius: 8px; text-align: center; border-left: 3px solid #e67e22;">
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 6px; font-weight: 600;">Human ↔ Model 1</div>
+                            <div style="font-size: 1.6rem; font-weight: 700; color: #e67e22;" id="humanOnly">0</div>
+                            <div style="font-size: 0.75rem; color: #999;" id="humanOnlyPct">0%</div>
+                        </div>
+                        <div style="padding: 12px; background: #e3f2fd; border-radius: 8px; text-align: center; border-left: 3px solid #3498db;">
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 6px; font-weight: 600;">Model 1 ↔ Model 2</div>
+                            <div style="font-size: 1.6rem; font-weight: 700; color: #3498db;" id="modelsAgree">0</div>
+                            <div style="font-size: 0.75rem; color: #999;" id="modelsAgreePct">0%</div>
+                        </div>
+                        <div style="padding: 12px; background: #e8f5e9; border-radius: 8px; text-align: center; border-left: 3px solid #27ae60;">
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 6px; font-weight: 600;">All Three Agree</div>
+                            <div style="font-size: 1.6rem; font-weight: 700; color: #27ae60;" id="allAgree">0</div>
+                            <div style="font-size: 0.75rem; color: #999;" id="allAgreePct">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Average Model Confidence -->
+                <div class="card" style="grid-column: 1 / -1;">
+                    <h3>Average Model Confidence</h3>
+                    <div id="confidenceDisplay" style="margin-top: 1rem;">
+                        <p style="text-align: center; color: #999;">Loading...</p>
+                    </div>
+                </div>
+
+                <!-- Top Classifications by Human -->
+                <div class="card">
+                    <h3>Top Classifications by Human</h3>
+                    <div id="humanClassifications" style="margin-top: 1rem;">
+                        <p style="text-align: center; color: #999;">Loading...</p>
+                    </div>
+                </div>
+
+                <!-- Top Classifications by Model 1 -->
+                <div class="card">
+                    <h3>Top Classifications by Model 1</h3>
+                    <div id="model1Classifications" style="margin-top: 1rem;">
+                        <p style="text-align: center; color: #999;">Loading...</p>
+                    </div>
+                </div>
+
+                <!-- Top Classifications by Model 2 -->
+                <div class="card">
+                    <h3>Top Classifications by Model 2</h3>
+                    <div id="model2Classifications" style="margin-top: 1rem;">
+                        <p style="text-align: center; color: #999;">Loading...</p>
+                    </div>
+                </div>
+
+                <!-- Insights -->
+                <div class="card" style="grid-column: 1 / -1; background: #e8f5e9;">
+                    <h3>Statistical Insights</h3>
+                    <div id="insights" style="margin-top: 1rem; color: #27ae60; line-height: 1.8;">
+                        <p>Loading insights...</p>
+                    </div>
+                </div>
+
+                <!-- Detailed Statistics -->
+                <div class="card" style="grid-column: 1 / -1;">
+                    <h3>Detailed Statistics</h3>
+                    <div id="detailedStats" style="margin-top: 1rem;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tbody id="statsTableBody">
+                                <tr><td colspan="2" style="text-align: center; color: #999; padding: 20px;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div style="grid-column: 1 / -1; display: flex; gap: 1rem; margin-top: 1rem;">
+                    <a href="scan.html" class="btn-primary" style="flex: 1; text-align: center;">Add Scans</a>
+                    <a href="dashboard.html" class="btn-outline" style="flex: 1; text-align: center;">Dashboard</a>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Firebase -->
+    <script type="module" src="js/firebaseInit.js"></script>
+
+    <!-- Sidebar + Auth -->
+    <script type="module">
+        import { auth } from './js/firebaseInit.js';
+        import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load sidebar
+            fetch("sidebar.html")
+                .then(res => res.text())
+                .then(data => {
+                    document.getElementById("sidebar").innerHTML = data;
+
+                    // Attach logout
+                    const logoutBtn = document.getElementById("logoutBtn");
+                    if (logoutBtn) {
+                        logoutBtn.addEventListener("click", async () => {
+                            try {
+                                await signOut(auth);
+                                window.location.href = "login.html";
+                            } catch (err) {
+                                console.error("Logout failed:", err);
+                            }
+                        });
+                    }
+                });
+
+            // Check auth
+            onAuthStateChanged(auth, (user) => {
+                if (!user) {
+                    window.location.href = "login.html";
+                    return;
+                }
+            });
+        });
+    </script>
+
+    <!-- Human vs AI Stats JS -->
+    <script type="module" src="js/humanvsai.js"></script>
+</body>
+
+</html>

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Recycling AI Assistant</title>
+    <title>Statistics - Recycling AI Assistant</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -15,60 +15,52 @@
 
         <main class="main-content">
             <header class="dashboard-header">
-                <h1>Welcome to Recycling Community 🌱</h1>
+                <h1>📊 Statistics</h1>
             </header>
 
             <div class="dashboard-grid">
-                <!-- Quick Scan Card -->
-                <div class="card scan-card">
-                    <h3>Quick Scan</h3>
-                    <p>Scan an item to check if it's recyclable</p>
-                    <a href="scan.html" class="btn-primary">
-                        <i class="fas fa-camera"></i>
-                        Start Scanning
-                    </a>
-                </div>
-
-                <!-- Your Impact Card (mirrors mobile) -->
+                <!-- Overview Cards -->
                 <div class="card stats-card">
-                    <h3>Your Impact</h3>
+                    <h3>Your Impact Overview</h3>
                     <div class="stats-grid">
                         <div class="stat-item">
-                            <span class="stat-number" id="itemsRecycled">0</span>
-                            <span class="stat-label">Items Scanned</span>
+                            <span class="stat-number" id="totalScans">0</span>
+                            <span class="stat-label">Total Scans</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-number" id="pointsEarned">0</span>
+                            <span class="stat-number" id="totalPoints">0</span>
                             <span class="stat-label">Points Earned</span>
                         </div>
                     </div>
-                    <div style="margin-top:12px; display:flex; gap:8px; justify-content: space-between;">
-                        <a href="statistics.html" class="btn-primary small" style="flex: 1;">View Statistics</a>
-                        <a href="HumanvsAIStats.html" class="btn-outline small" style="flex: 1;">View AI Comparison</a>
+                </div>
+
+                <!-- Waste Composition -->
+                <div class="card composition-card">
+                    <h3>Waste Composition Breakdown</h3>
+                    <div id="wasteComposition" class="composition-list">
+                        <p style="text-align: center; color: #999;">No scans yet. Start scanning to see your breakdown!</p>
                     </div>
                 </div>
 
-                <!-- History Card -->
-                <div class="card history-card">
-                    <h3>Recent Scans</h3>
-                    <div class="recent-scans" id="recentScans"></div>
-                    <a href="history.html" class="view-all-link">View All History <i class="fas fa-arrow-right"></i></a>
+                <!-- Environmental Impact -->
+                <div class="card impact-card" style="background: #e8f5e9; grid-column: 1 / -1;">
+                    <h3>🌍 Environmental Impact</h3>
+                    <p id="impactMessage" style="color: #27ae60; margin: 1rem 0; line-height: 1.6;">
+                        By recycling scans, you've helped reduce waste and protect our planet!
+                    </p>
                 </div>
 
-                <!-- Tip Card -->
-                <div class="card tip-card">
-                    <h3>Daily Tip</h3>
-                    <p id="dailyTip">Remember to rinse containers before recycling them!</p>
+                <!-- Action Buttons -->
+                <div style="grid-column: 1 / -1; display: flex; gap: 1rem; margin-top: 1rem;">
+                    <a href="history.html" class="btn-primary" style="flex: 1; text-align: center;">View Full History</a>
+                    <a href="dashboard.html" class="btn-outline" style="flex: 1; text-align: center;">Back to Dashboard</a>
                 </div>
-
-                <!-- Achievements and Environmental Impact removed per request -->
             </div>
         </main>
     </div>
 
     <!-- Firebase -->
     <script type="module" src="js/firebaseInit.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- Sidebar + Auth -->
     <script type="module">
@@ -96,20 +88,18 @@
                     }
                 });
 
-            // Just ensure user is authenticated; do not show username
+            // Check auth
             onAuthStateChanged(auth, (user) => {
                 if (!user) {
                     window.location.href = "login.html";
                     return;
                 }
-                // Intentionally not setting username in header per request
             });
         });
     </script>
 
-    <!-- Dashboard JS -->
-    <script type="module" src="js/enhancements.js"></script>
-    <script type="module" src="js/dashboard.js"></script>
+    <!-- Statistics JS -->
+    <script type="module" src="js/statistics.js"></script>
 </body>
 
 </html>

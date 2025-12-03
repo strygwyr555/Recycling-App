@@ -3,459 +3,199 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { useCallback, useState, useEffect } from "react";
 import {
   ActivityIndicator,
-  Platform,
-  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
+  useWindowDimensions,
+  Pressable,
+  Dimensions,
 } from "react-native";
 import { auth, db } from "./firebaseInit";
-import { BarChart } from "react-native-chart-kit";
+import { BarChart, LineChart, PieChart } from "react-native-chart-kit";
 
-export default function HumanvsAIStatsScreen() {
+const WASTE_TYPE_LABELS = {
+  "metal_waste": "Metal Waste",
+  "organic_waste": "Organic Waste",
+  "paper_waste": "Paper Waste",
+  "plastic_waste": "Plastic Waste",
+  "battery_waste": "Battery Waste",
+  "white_glass": "White Glass",
+  "green_glass": "Green Glass",
+  "brown_glass": "Brown Glass",
+  "cardboard_waste": "Cardboard Waste",
+  "clothing_waste": "Clothing Waste",
+  "e_waste": "E-waste",
+  "trash": "Trash",
+};
+
+const COLORS = {
+  human: "#3498db",
+  model1: "#e74c3c",
+  model2: "#f39c12",
+  match: "#27ae60",
+  mismatch: "#e74c3c",
+};
+
+export default function HumanvsAIStats() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const [loading, setLoading] = useState(true);
+  const [scans, setScans] = useState([]);
+  const [stats, setStats] = useState({
+    totalScans: 0,
+    humanModel1Match: 0,
+    humanModel2Match: 0,
+    model1Model2Match: 0,
+    allThreeMatch: 0,
+    humanVsEnsembleMatch: 0,
+    humanAccuracy: 0,
+    model1Accuracy: 0,
+    model2Accuracy: 0,
+    model1AvgConfidence: 0,
+    model2AvgConfidence: 0,
+    humanClassificationCounts: {},
+    model1ClassificationCounts: {},
+    model2ClassificationCounts: {},
+    accuracyTrend: [],
+  });
+
   const [orientation, setOrientation] = useState(
     width > height ? "landscape" : "portrait"
   );
-
-  // Advanced Stats
-  const [stats, setStats] = useState({
-    totalScans: 0,
-    humanAccuracy: 0,
-    aiModel1Accuracy: 0,
-    aiModel2Accuracy: 0,
-    humanAIAgreement: 0,
-    aiConsensus: 0,
-    kappaCoefficient: 0,
-    disagreementRate: 0,
-    confidenceCalibration: 0,
-  });
-
-  // Chart Data
-  const [accuracyComparison, setAccuracyComparison] = useState(null);
-  const [confusionMatrix, setConfusionMatrix] = useState(null);
-  const [confidenceCalibrationChart, setConfidenceCalibrationChart] = useState(null);
-  const [agreementTimeline, setAgreementTimeline] = useState(null);
-  const [classificationAccuracy, setClassificationAccuracy] = useState(null);
-  const [disagreementAnalysis, setDisagreementAnalysis] = useState(null);
-
-  // Responsive
-  const isLandscape = orientation === "landscape";
-  const isMobileSmall = width < 375;
-  const isTablet = width >= 768;
 
   useEffect(() => {
     setOrientation(width > height ? "landscape" : "portrait");
   }, [width, height]);
 
-  const getResponsiveSizes = () => {
-    let headerFontSize = 20;
-    let cardTitleFontSize = 16;
-    let chartHeight = 250;
-    let padding = 16;
-    let chartWidth = width - 40;
+  const isTablet = width >= 768;
+  const chartWidth = isTablet ? width - 40 : width - 30;
 
-    if (isMobileSmall) {
-      headerFontSize = 18;
-      cardTitleFontSize = 14;
-      chartHeight = 200;
-      padding = 12;
-      chartWidth = width - 30;
-    } else if (isTablet) {
-      headerFontSize = 26;
-      cardTitleFontSize = 20;
-      chartHeight = 320;
-      padding = 20;
-      chartWidth = width - 50;
-    }
-
-    return {
-      headerFontSize,
-      cardTitleFontSize,
-      chartHeight,
-      padding,
-      chartWidth,
-    };
-  };
-
-  const sizes = getResponsiveSizes();
-
-  const fetchAndProcessData = useCallback(async () => {
+  /** ======================================
+   * FETCH AND ANALYZE DATA
+   ====================================== */
+  const fetchAndAnalyze = useCallback(async () => {
     try {
+      setLoading(true);
       const user = auth.currentUser;
-      if (!user) return;
-
-      const scansRef = collection(db, "scan");
-      const q = query(scansRef, where("email", "==", user.email));
-      const querySnapshot = await getDocs(q);
-
-      const scans = querySnapshot.docs.map((doc) => doc.data());
-      const totalScans = scans.length;
-
-      if (totalScans === 0) {
-        setStats({
-          totalScans: 0,
-          humanAccuracy: 0,
-          aiModel1Accuracy: 0,
-          aiModel2Accuracy: 0,
-          humanAIAgreement: 0,
-          aiConsensus: 0,
-          kappaCoefficient: 0,
-          disagreementRate: 0,
-          confidenceCalibration: 0,
-        });
+      if (!user) {
         setLoading(false);
         return;
       }
 
-      // ===== METRIC 1: Model Accuracy (vs Final Selection) =====
-      const aiModel1Correct = scans.filter((s) => {
-        const model1Pred = s.results?.model1?.prediction || s.aiModel1Prediction;
-        return model1Pred === s.finalSelection;
-      }).length;
+      const scansRef = collection(db, "scan");
+      const q = query(scansRef, where("email", "==", user.email));
+      const snapshot = await getDocs(q);
+      const allScans = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-      const aiModel2Correct = scans.filter((s) => {
-        const model2Pred = s.results?.model2?.prediction || s.aiModel2Prediction;
-        return model2Pred === s.finalSelection;
-      }).length;
+      setScans(allScans);
 
-      const aiModel1Accuracy = ((aiModel1Correct / totalScans) * 100).toFixed(1);
-      const aiModel2Accuracy = ((aiModel2Correct / totalScans) * 100).toFixed(1);
-
-      // ===== METRIC 2: Human Accuracy (user selection vs final) =====
-      const humanCorrect = scans.filter((s) => s.userSelection === s.finalSelection).length;
-      const humanAccuracy = ((humanCorrect / totalScans) * 100).toFixed(1);
-
-      // ===== METRIC 3: Human-AI Agreement =====
-      const humanAgreement = scans.filter((s) => {
-        const model1Pred = s.results?.model1?.prediction || s.aiModel1Prediction;
-        const model2Pred = s.results?.model2?.prediction || s.aiModel2Prediction;
-        return s.userSelection === model1Pred || s.userSelection === model2Pred;
-      }).length;
-      const humanAIAgreement = ((humanAgreement / totalScans) * 100).toFixed(1);
-
-      // ===== METRIC 4: AI Consensus =====
-      const aiConsensusCount = scans.filter((s) => {
-        const model1Pred = s.results?.model1?.prediction || s.aiModel1Prediction;
-        const model2Pred = s.results?.model2?.prediction || s.aiModel2Prediction;
-        return model1Pred === model2Pred;
-      }).length;
-      const aiConsensus = ((aiConsensusCount / totalScans) * 100).toFixed(1);
-
-      // ===== METRIC 5: Kappa Coefficient =====
-      const kappaCoefficient = calculateCohenKappa(scans);
-
-      // ===== METRIC 6: Disagreement Rate =====
-      const allDisagree = scans.filter((s) => {
-        const model1Pred = s.results?.model1?.prediction || s.aiModel1Prediction;
-        const model2Pred = s.results?.model2?.prediction || s.aiModel2Prediction;
-        return (
-          s.userSelection !== model1Pred &&
-          s.userSelection !== model2Pred &&
-          model1Pred !== model2Pred
-        );
-      }).length;
-      const disagreementRate = ((allDisagree / totalScans) * 100).toFixed(1);
-
-      // ===== METRIC 7: Confidence Calibration =====
-      const calibration = calculateConfidenceCalibration(scans);
-
-      setStats({
-        totalScans,
-        humanAccuracy: parseFloat(humanAccuracy),
-        aiModel1Accuracy: parseFloat(aiModel1Accuracy),
-        aiModel2Accuracy: parseFloat(aiModel2Accuracy),
-        humanAIAgreement: parseFloat(humanAIAgreement),
-        aiConsensus: parseFloat(aiConsensus),
-        kappaCoefficient: kappaCoefficient.toFixed(3),
-        disagreementRate: parseFloat(disagreementRate),
-        confidenceCalibration: calibration.toFixed(2),
-      });
-
-      // Build visualizations
-      setAccuracyComparison(buildAccuracyChart(scans, totalScans));
-      setConfusionMatrix(buildConfusionMatrix(scans));
-      setConfidenceCalibrationChart(buildConfidenceCalibration(scans));
-      setAgreementTimeline(buildTimelineChart(scans));
-      setClassificationAccuracy(buildPerClassAccuracy(scans));
-      setDisagreementAnalysis(buildDisagreementPatterns(scans));
-
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching stats:", error);
+      // Calculate statistics
+      const analyzed = analyzeComparisons(allScans);
+      setStats(analyzed);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+    } finally {
       setLoading(false);
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchAndProcessData();
-    }, [fetchAndProcessData])
-  );
+  const analyzeComparisons = (allScans) => {
+    let humanModel1Match = 0;
+    let humanModel2Match = 0;
+    let model1Model2Match = 0;
+    let allThreeMatch = 0;
+    let humanVsEnsembleMatch = 0;
 
-  // ===== HELPER: Extract Model Prediction =====
-  const getModelPrediction = (scan, modelKey) => {
-    return scan.results?.[modelKey]?.prediction || 
-           (modelKey === "model1" ? scan.aiModel1Prediction : scan.aiModel2Prediction);
-  };
+    let humanClassificationCounts = {};
+    let model1ClassificationCounts = {};
+    let model2ClassificationCounts = {};
+    let accuracyTrend = [];
 
-  // ===== HELPER: Extract Model Confidence =====
-  const getModelConfidence = (scan, modelKey) => {
-    return scan.results?.[modelKey]?.confidence || 
-           (modelKey === "model1" ? scan.aiModel1Confidence : scan.aiModel2Confidence) || 0;
-  };
+    let totalModel1Confidence = 0;
+    let totalModel2Confidence = 0;
 
-  // ===== HELPER: Cohen's Kappa =====
-  const calculateCohenKappa = (scans) => {
-    let observed = 0;
-    const classFreq = {};
+    // track correct counts for accuracy
+    let model1Correct = 0;
+    let model2Correct = 0;
 
-    scans.forEach((s) => {
-      const model1Pred = getModelPrediction(s, "model1");
-      
-      if (s.userSelection === model1Pred) observed++;
-      classFreq[s.userSelection] = (classFreq[s.userSelection] || 0) + 1;
-      classFreq[model1Pred] = (classFreq[model1Pred] || 0) + 1;
+    allScans.forEach((scan, index) => {
+      // prefer top-level fields but fall back to nested results (mobilenet/rexnet)
+      const human = scan.userSelection;
+      const model1 = scan.aiModel1Prediction || scan.results?.mobilenet?.prediction || null;
+      const model2 = scan.aiModel2Prediction || scan.results?.rexnet?.prediction || null;
+      const ensemble = scan.finalSelection || scan.classification || scan.result || null;
+
+      // Count classifications
+      humanClassificationCounts[human] =
+        (humanClassificationCounts[human] || 0) + 1;
+      model1ClassificationCounts[model1] =
+        (model1ClassificationCounts[model1] || 0) + 1;
+      model2ClassificationCounts[model2] =
+        (model2ClassificationCounts[model2] || 0) + 1;
+
+      // Match counts (use strict equality of the raw labels)
+      if (human && model1 && human === model1) humanModel1Match++;
+      if (human && model2 && human === model2) humanModel2Match++;
+      if (model1 && model2 && model1 === model2) model1Model2Match++;
+      if (human && model1 && model2 && human === model1 && model1 === model2) allThreeMatch++;
+      if (human && ensemble && human === ensemble) humanVsEnsembleMatch++;
+
+      // Count model correctness vs ensemble
+      if (model1 && ensemble && model1 === ensemble) model1Correct++;
+      if (model2 && ensemble && model2 === ensemble) model2Correct++;
+
+      // Confidence scores
+      totalModel1Confidence += scan.aiModel1Confidence || 0;
+      totalModel2Confidence += scan.aiModel2Confidence || 0;
+
+      // Trend (cumulative accuracy over time)
+      const matchCount = (human && ensemble && human === ensemble ? 1 : 0);
+      accuracyTrend.push({
+        scan: index + 1,
+        accuracy: matchCount,
+      });
     });
 
-    let expected = 0;
-    Object.values(classFreq).forEach((count) => {
-      expected += (count / (scans.length * 2)) ** 2;
-    });
-
-    const po = observed / scans.length;
-    const pe = expected;
-    return (po - pe) / (1 - pe) || 0;
-  };
-
-  // ===== HELPER: Confidence Calibration =====
-  const calculateConfidenceCalibration = (scans) => {
-    const bins = {
-      "0-20": { correct: 0, total: 0 },
-      "20-40": { correct: 0, total: 0 },
-      "40-60": { correct: 0, total: 0 },
-      "60-80": { correct: 0, total: 0 },
-      "80-100": { correct: 0, total: 0 },
-    };
-
-    scans.forEach((scan) => {
-      const conf1 = parseFloat(getModelConfidence(scan, "model1")) || 0;
-      const conf2 = parseFloat(getModelConfidence(scan, "model2")) || 0;
-      const avgConf = Math.round(((conf1 + conf2) / 2) * 100);
-
-      let bin;
-      if (avgConf < 20) bin = "0-20";
-      else if (avgConf < 40) bin = "20-40";
-      else if (avgConf < 60) bin = "40-60";
-      else if (avgConf < 80) bin = "60-80";
-      else bin = "80-100";
-
-      bins[bin].total += 1;
-
-      const model1Pred = getModelPrediction(scan, "model1");
-      const model2Pred = getModelPrediction(scan, "model2");
-      
-      if (model1Pred === scan.finalSelection || model2Pred === scan.finalSelection) {
-        bins[bin].correct += 1;
-      }
-    });
-
-    // Calculate Expected Calibration Error (ECE)
-    let ece = 0;
-    let validBins = 0;
-    Object.values(bins).forEach((bin) => {
-      if (bin.total > 0) {
-        const accuracy = bin.correct / bin.total;
-        ece += Math.abs(accuracy - 0.5); // Simplified ECE
-        validBins++;
-      }
-    });
-    return validBins > 0 ? ece / validBins : 0;
-  };
-
-  // ===== BUILD: Accuracy Comparison Bar Chart =====
-  const buildAccuracyChart = (scans, total) => {
-    const aiModel1Correct = scans.filter((s) => 
-      getModelPrediction(s, "model1") === s.finalSelection
-    ).length;
-    const aiModel2Correct = scans.filter((s) => 
-      getModelPrediction(s, "model2") === s.finalSelection
-    ).length;
-    const humanCorrect = scans.filter((s) => s.userSelection === s.finalSelection).length;
+    const totalScans = allScans.length;
 
     return {
-      labels: ["Human", "Model 1", "Model 2"],
-      datasets: [
-        {
-          data: [
-            ((humanCorrect / total) * 100),
-            ((aiModel1Correct / total) * 100),
-            ((aiModel2Correct / total) * 100),
-          ],
-        },
-      ],
+      totalScans,
+      humanModel1Match,
+      humanModel2Match,
+      model1Model2Match,
+      allThreeMatch,
+      humanVsEnsembleMatch,
+      humanAccuracy: totalScans > 0 ? (humanVsEnsembleMatch / totalScans) * 100 : 0,
+      model1Accuracy: totalScans > 0 ? (model1Correct / totalScans) * 100 : 0,
+      model2Accuracy: totalScans > 0 ? (model2Correct / totalScans) * 100 : 0,
+      model1AvgConfidence:
+        totalScans > 0 ? (totalModel1Confidence / totalScans) * 100 : 0,
+      model2AvgConfidence:
+        totalScans > 0 ? (totalModel2Confidence / totalScans) * 100 : 0,
+      humanClassificationCounts,
+      model1ClassificationCounts,
+      model2ClassificationCounts,
+      accuracyTrend,
     };
   };
 
-  // ===== BUILD: Confusion Matrix =====
-  const buildConfusionMatrix = (scans) => {
-    const matrix = {
-      humanCorrect: 0,
-      model1Correct: 0,
-      model2Correct: 0,
-      bothModelsAgree: 0,
-      allAgree: 0,
-    };
+  useEffect(() => {
+    fetchAndAnalyze();
+  }, [fetchAndAnalyze]);
 
-    scans.forEach((s) => {
-      const model1Pred = getModelPrediction(s, "model1");
-      const model2Pred = getModelPrediction(s, "model2");
-
-      if (s.userSelection === s.finalSelection) matrix.humanCorrect++;
-      if (model1Pred === s.finalSelection) matrix.model1Correct++;
-      if (model2Pred === s.finalSelection) matrix.model2Correct++;
-      if (model1Pred === model2Pred) matrix.bothModelsAgree++;
-      if (
-        s.userSelection === model1Pred &&
-        model1Pred === model2Pred
-      ) {
-        matrix.allAgree++;
-      }
-    });
-
-    return matrix;
-  };
-
-  // ===== BUILD: Confidence Calibration Chart =====
-  const buildConfidenceCalibration = (scans) => {
-    const bins = {
-      "0-20%": { correct: 0, total: 0 },
-      "20-40%": { correct: 0, total: 0 },
-      "40-60%": { correct: 0, total: 0 },
-      "60-80%": { correct: 0, total: 0 },
-      "80-100%": { correct: 0, total: 0 },
-    };
-
-    scans.forEach((scan) => {
-      const conf1 = parseFloat(getModelConfidence(scan, "model1")) || 0;
-      const conf2 = parseFloat(getModelConfidence(scan, "model2")) || 0;
-      const avgConf = ((conf1 + conf2) / 2) * 100;
-
-      let bin;
-      if (avgConf < 20) bin = "0-20%";
-      else if (avgConf < 40) bin = "20-40%";
-      else if (avgConf < 60) bin = "40-60%";
-      else if (avgConf < 80) bin = "60-80%";
-      else bin = "80-100%";
-
-      bins[bin].total += 1;
-
-      const model1Pred = getModelPrediction(scan, "model1");
-      const model2Pred = getModelPrediction(scan, "model2");
-
-      if (model1Pred === scan.finalSelection || model2Pred === scan.finalSelection) {
-        bins[bin].correct += 1;
-      }
-    });
-
-    return bins;
-  };
-
-  // ===== BUILD: Agreement Timeline =====
-  const buildTimelineChart = (scans) => {
-    const byDate = {};
-    scans.forEach((scan) => {
-      const date = scan.timestamp?.split("T")[0] || "Unknown";
-      if (!byDate[date]) {
-        byDate[date] = { humanCorrect: 0, model1Correct: 0, model2Correct: 0, total: 0 };
-      }
-      byDate[date].total += 1;
-
-      const model1Pred = getModelPrediction(scan, "model1");
-      const model2Pred = getModelPrediction(scan, "model2");
-
-      if (scan.userSelection === scan.finalSelection) byDate[date].humanCorrect++;
-      if (model1Pred === scan.finalSelection) byDate[date].model1Correct++;
-      if (model2Pred === scan.finalSelection) byDate[date].model2Correct++;
-    });
-
-    return Object.entries(byDate)
-      .sort((a, b) => new Date(a[0]) - new Date(b[0]))
-      .slice(-14)
-      .map(([date, data]) => ({
-        date: date.slice(-5),
-        human: data.total > 0 ? ((data.humanCorrect / data.total) * 100).toFixed(0) : 0,
-        model1: data.total > 0 ? ((data.model1Correct / data.total) * 100).toFixed(0) : 0,
-        model2: data.total > 0 ? ((data.model2Correct / data.total) * 100).toFixed(0) : 0,
-      }));
-  };
-
-  // ===== BUILD: Per-Classification Accuracy =====
-  const buildPerClassAccuracy = (scans) => {
-    const classStats = {};
-
-    scans.forEach((scan) => {
-      const cls = scan.finalSelection;
-      if (!classStats[cls]) {
-        classStats[cls] = { humanCorrect: 0, model1Correct: 0, total: 0 };
-      }
-      classStats[cls].total++;
-
-      const model1Pred = getModelPrediction(scan, "model1");
-
-      if (scan.userSelection === cls) classStats[cls].humanCorrect++;
-      if (model1Pred === cls) classStats[cls].model1Correct++;
-    });
-
-    return Object.entries(classStats)
-      .map(([type, data]) => ({
-        type: type.replace(" waste", "").slice(0, 10),
-        humanAcc: data.total > 0 ? ((data.humanCorrect / data.total) * 100).toFixed(0) : 0,
-        aiAcc: data.total > 0 ? ((data.model1Correct / data.total) * 100).toFixed(0) : 0,
-        count: data.total,
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 6);
-  };
-
-  // ===== BUILD: Disagreement Patterns =====
-  const buildDisagreementPatterns = (scans) => {
-    const patterns = {
-      humanCorrect: 0,
-      bothAICorrect: 0,
-      humanWrong: 0,
-      mixedSuccess: 0,
-    };
-
-    scans.forEach((scan) => {
-      const model1Pred = getModelPrediction(scan, "model1");
-      const model2Pred = getModelPrediction(scan, "model2");
-
-      const humanRight = scan.userSelection === scan.finalSelection;
-      const model1Right = model1Pred === scan.finalSelection;
-      const model2Right = model2Pred === scan.finalSelection;
-
-      if (humanRight && !model1Right && !model2Right) patterns.humanCorrect++;
-      else if (!humanRight && model1Right && model2Right) patterns.bothAICorrect++;
-      else if (!humanRight && !model1Right && !model2Right) patterns.humanWrong++;
-      else patterns.mixedSuccess++;
-    });
-
-    return patterns;
-  };
+  useFocusEffect(
+    useCallback(() => {
+      fetchAndAnalyze();
+    }, [fetchAndAnalyze])
+  );
 
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#27ae60" />
-        <Text style={[styles.loadingText, { fontSize: 16 }]}>
-          Computing AI statistics...
-        </Text>
+        <Text style={styles.loadingText}>Analyzing comparisons...</Text>
       </SafeAreaView>
     );
   }
@@ -463,321 +203,329 @@ export default function HumanvsAIStatsScreen() {
   if (stats.totalScans === 0) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={[styles.header, { padding: sizes.padding }]}>
+        <View style={styles.header}>
           <Pressable
             onPress={() => router.push("/dashboard")}
-            style={[styles.backButton, { paddingHorizontal: sizes.padding }]}
+            style={styles.backButton}
           >
-            <Text style={[styles.backButtonText, { fontSize: 14 }]}>← Back</Text>
+            <Text style={styles.backButtonText}>← Back</Text>
           </Pressable>
-          <Text style={[styles.headerTitle, { fontSize: sizes.headerFontSize, flex: 1 }]}>
-            🤖 Human vs AI
-          </Text>
+          <Text style={styles.headerTitle}>Human vs AI Analysis</Text>
           <View style={{ width: 60 }} />
         </View>
-
         <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyText, { fontSize: 16 }]}>
-            No scans yet. Start scanning to see human vs AI analysis!
-          </Text>
-          <Pressable
-            style={[styles.button, styles.primaryButton]}
-            onPress={() => router.push("/scan")}
-          >
-            <Text style={styles.buttonText}>📸 Start Scanning</Text>
-          </Pressable>
+          <Text style={styles.emptyText}>No scans yet. Start scanning!</Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  // Chart data for Match Comparison
+  const matchChartData = {
+    labels: ["Human vs\nModel1", "Human vs\nModel2", "Model1 vs\nModel2", "All\nThree"],
+    datasets: [
+      {
+        data: [
+          stats.humanModel1Match,
+          stats.humanModel2Match,
+          stats.model1Model2Match,
+          stats.allThreeMatch,
+        ],
+      },
+    ],
+  };
+
+  // Chart data for Confidence Scores
+  const confidenceChartData = {
+    labels: ["Model 1", "Model 2"],
+    datasets: [
+      {
+        data: [stats.model1AvgConfidence, stats.model2AvgConfidence],
+      },
+    ],
+  };
+
+  // Pie chart for accuracy
+  const accuracyPieData = [
+    {
+      name: "Human Correct",
+      population: stats.humanVsEnsembleMatch,
+      color: COLORS.match,
+      legendFontColor: "#333",
+      legendFontSize: 12,
+    },
+    {
+      name: "Human Incorrect",
+      population: stats.totalScans - stats.humanVsEnsembleMatch,
+      color: COLORS.mismatch,
+      legendFontColor: "#333",
+      legendFontSize: 12,
+    },
+  ];
+
+  // Top classifications - Human
+  const topHumanClassifications = Object.entries(stats.humanClassificationCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+  // Top classifications - Model 1
+  const topModel1Classifications = Object.entries(stats.model1ClassificationCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+  // Top classifications - Model 2
+  const topModel2Classifications = Object.entries(stats.model2ClassificationCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { padding: sizes.padding }]}>
+      {/* HEADER */}
+      <View style={styles.header}>
         <Pressable
           onPress={() => router.push("/dashboard")}
-          style={[styles.backButton, { paddingHorizontal: sizes.padding }]}
+          style={styles.backButton}
         >
-          <Text style={[styles.backButtonText, { fontSize: 14 }]}>← Back</Text>
+          <Text style={styles.backButtonText}>← Back</Text>
         </Pressable>
-        <Text style={[styles.headerTitle, { fontSize: sizes.headerFontSize, flex: 1 }]}>
-          📊 Human vs AI
-        </Text>
+        <Text style={styles.headerTitle}>Human vs AI Analysis</Text>
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { padding: sizes.padding, paddingBottom: sizes.padding * 2 },
-        ]}
-      >
-        {/* KPI Grid */}
-        <View style={[styles.card, { marginBottom: sizes.padding, padding: sizes.padding, backgroundColor: "#f0f9ff" }]}>
-          <Text style={[styles.cardTitle, { fontSize: sizes.cardTitleFontSize, marginBottom: sizes.padding }]}>
-            📈 Performance Metrics (n={stats.totalScans})
-          </Text>
-          <View style={styles.kpiGrid}>
-            <View style={styles.kpiBox}>
-              <Text style={styles.kpiLabel}>Human</Text>
-              <Text style={[styles.kpiValue, { color: "#e67e22" }]}>
-                {stats.humanAccuracy.toFixed(1)}%
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* OVERVIEW CARDS */}
+        <View style={styles.cardRow}>
+          <View style={[styles.card, styles.cardSmall]}>
+            <Text style={styles.cardLabel}>Total Scans</Text>
+            <Text style={styles.cardValue}>{stats.totalScans}</Text>
+          </View>
+          <View style={[styles.card, styles.cardSmall]}>
+            <Text style={styles.cardLabel}>Human Accuracy</Text>
+            <Text style={[styles.cardValue, { color: COLORS.human }]}>
+              {stats.humanAccuracy.toFixed(1)}%
+            </Text>
+          </View>
+        </View>
+
+        {/* ACCURACY PIE CHART */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Human vs Ensemble Accuracy</Text>
+          <PieChart
+            data={accuracyPieData}
+            width={chartWidth}
+            height={220}
+            chartConfig={{
+              color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+            }}
+            accessor="population"
+            backgroundColor="transparent"
+            paddingLeft="0"
+          />
+          <View style={styles.accuracyBreakdown}>
+            <Text style={styles.breakdownText}>
+              ✓ Correct: {stats.humanVsEnsembleMatch} / {stats.totalScans}
+            </Text>
+            <Text style={styles.breakdownText}>
+              ✗ Incorrect: {stats.totalScans - stats.humanVsEnsembleMatch} / {stats.totalScans}
+            </Text>
+          </View>
+        </View>
+
+        {/* MATCH COMPARISON - SIMPLIFIED CARDS */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Agreement Between Classifiers</Text>
+          <View style={styles.comparisonGrid}>
+            <View style={styles.comparisonBox}>
+              <Text style={styles.comparisonLabel}>Human ↔ Model 1</Text>
+              <Text style={styles.comparisonValue}>{stats.humanModel1Match}</Text>
+              <Text style={styles.comparisonPercent}>
+                {((stats.humanModel1Match / stats.totalScans) * 100).toFixed(0)}%
               </Text>
             </View>
-            <View style={styles.kpiBox}>
-              <Text style={styles.kpiLabel}>Model 1</Text>
-              <Text style={[styles.kpiValue, { color: "#3498db" }]}>
-                {stats.aiModel1Accuracy.toFixed(1)}%
+            <View style={styles.comparisonBox}>
+              <Text style={styles.comparisonLabel}>Human ↔ Model 2</Text>
+              <Text style={styles.comparisonValue}>{stats.humanModel2Match}</Text>
+              <Text style={styles.comparisonPercent}>
+                {((stats.humanModel2Match / stats.totalScans) * 100).toFixed(0)}%
               </Text>
             </View>
-            <View style={styles.kpiBox}>
-              <Text style={styles.kpiLabel}>Model 2</Text>
-              <Text style={[styles.kpiValue, { color: "#9c27b0" }]}>
-                {stats.aiModel2Accuracy.toFixed(1)}%
+            <View style={styles.comparisonBox}>
+              <Text style={styles.comparisonLabel}>Model 1 ↔ Model 2</Text>
+              <Text style={styles.comparisonValue}>{stats.model1Model2Match}</Text>
+              <Text style={styles.comparisonPercent}>
+                {((stats.model1Model2Match / stats.totalScans) * 100).toFixed(0)}%
               </Text>
             </View>
-            <View style={styles.kpiBox}>
-              <Text style={styles.kpiLabel}>Kappa</Text>
-              <Text style={[styles.kpiValue, { color: "#27ae60" }]}>
-                {stats.kappaCoefficient}
+            <View style={styles.comparisonBox}>
+              <Text style={styles.comparisonLabel}>All Three Match</Text>
+              <Text style={styles.comparisonValue}>{stats.allThreeMatch}</Text>
+              <Text style={styles.comparisonPercent}>
+                {((stats.allThreeMatch / stats.totalScans) * 100).toFixed(0)}%
               </Text>
             </View>
           </View>
         </View>
 
-        {/* 1. Accuracy Comparison Bar Chart */}
-        {accuracyComparison && (
-          <View style={[styles.card, { marginBottom: sizes.padding, padding: sizes.padding }]}>
-            <Text style={[styles.cardTitle, { fontSize: sizes.cardTitleFontSize, marginBottom: sizes.padding }]}>
-              📊 Accuracy Comparison
-            </Text>
-            <View style={{ alignItems: "center" }}>
-              <BarChart
-                data={accuracyComparison}
-                width={sizes.chartWidth}
-                height={sizes.chartHeight}
-                yAxisLabel=""
-                yAxisSuffix="%"
-                chartConfig={{
-                  backgroundColor: "#fff",
-                  backgroundGradientFrom: "#fff",
-                  backgroundGradientTo: "#fff",
-                  color: () => "#27ae60",
-                  labelColor: () => "#7f8c8d",
-                  barPercentage: 0.6,
-                  decimalPlaces: 1,
-                }}
-                verticalLabelRotation={0}
-              />
-            </View>
-            <Text style={[styles.chartNote, { fontSize: 12, marginTop: sizes.padding }]}>
-              🎯 vs Final Selection
-            </Text>
-          </View>
-        )}
-
-        {/* 2. Agreement Patterns */}
-        {confusionMatrix && (
-          <View style={[styles.card, { marginBottom: sizes.padding, padding: sizes.padding }]}>
-            <Text style={[styles.cardTitle, { fontSize: sizes.cardTitleFontSize, marginBottom: sizes.padding }]}>
-              🔀 Decision Agreement
-            </Text>
-            <View style={styles.matrixRow}>
-              <View style={styles.matrixCell}>
-                <Text style={styles.matrixLabel}>Human Only</Text>
-                <Text style={[styles.matrixValue, { color: "#e67e22" }]}>
-                  {confusionMatrix.humanCorrect}
-                </Text>
-                <Text style={styles.matrixPercent}>
-                  {((confusionMatrix.humanCorrect / stats.totalScans) * 100).toFixed(1)}%
-                </Text>
+        {/* CONFIDENCE SCORES - SIMPLE COMPARISON */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Average Model Confidence</Text>
+          <View style={styles.confidenceRow}>
+            <View style={styles.confidenceItem}>
+              <Text style={styles.confidenceLabel}>Model 1</Text>
+              <View style={styles.confidenceBarContainer}>
+                <View
+                  style={[
+                    styles.confidenceBar,
+                    {
+                      width: `${stats.model1AvgConfidence}%`,
+                      backgroundColor: COLORS.model1,
+                    },
+                  ]}
+                />
               </View>
-              <View style={styles.matrixCell}>
-                <Text style={styles.matrixLabel}>Models Agree</Text>
-                <Text style={[styles.matrixValue, { color: "#3498db" }]}>
-                  {confusionMatrix.bothModelsAgree}
-                </Text>
-                <Text style={styles.matrixPercent}>
-                  {((confusionMatrix.bothModelsAgree / stats.totalScans) * 100).toFixed(1)}%
-                </Text>
-              </View>
-              <View style={styles.matrixCell}>
-                <Text style={styles.matrixLabel}>All Agree</Text>
-                <Text style={[styles.matrixValue, { color: "#27ae60" }]}>
-                  {confusionMatrix.allAgree}
-                </Text>
-                <Text style={styles.matrixPercent}>
-                  {((confusionMatrix.allAgree / stats.totalScans) * 100).toFixed(1)}%
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* 3. Confidence Calibration */}
-        {confidenceCalibrationChart && (
-          <View style={[styles.card, { marginBottom: sizes.padding, padding: sizes.padding }]}>
-            <Text style={[styles.cardTitle, { fontSize: sizes.cardTitleFontSize, marginBottom: sizes.padding }]}>
-              📉 Confidence Calibration (ECE: {stats.confidenceCalibration})
-            </Text>
-            {Object.entries(confidenceCalibrationChart).map(([bin, data]) => (
-              <View key={bin} style={styles.calibrationRow}>
-                <Text style={styles.calibrationLabel}>{bin}</Text>
-                <View style={styles.calibrationBar}>
-                  <View
-                    style={[
-                      styles.calibrationFill,
-                      {
-                        width: `${data.total > 0 ? (data.correct / data.total) * 100 : 0}%`,
-                        backgroundColor:
-                          data.total > 0 && data.correct / data.total > 0.7
-                            ? "#27ae60"
-                            : data.total > 0 && data.correct / data.total > 0.5
-                            ? "#f39c12"
-                            : "#e74c3c",
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.calibrationText}>
-                  {data.correct}/{data.total}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* 4. Per-Classification Accuracy */}
-        {classificationAccuracy && (
-          <View style={[styles.card, { marginBottom: sizes.padding, padding: sizes.padding }]}>
-            <Text style={[styles.cardTitle, { fontSize: sizes.cardTitleFontSize, marginBottom: sizes.padding }]}>
-              🗑️ Accuracy by Waste Type
-            </Text>
-            {classificationAccuracy.map((item, idx) => (
-              <View key={idx} style={styles.typeRow}>
-                <View style={styles.typeLabel}>
-                  <Text style={styles.typeText}>{item.type}</Text>
-                  <Text style={styles.typeCount}>n={item.count}</Text>
-                </View>
-                <View style={styles.typeBarContainer}>
-                  <View style={[styles.typeBar, { width: `${item.humanAcc}%`, backgroundColor: "#e67e22" }]} />
-                  <View style={[styles.typeBar, { width: `${item.aiAcc}%`, backgroundColor: "#3498db" }]} />
-                </View>
-                <Text style={styles.typePercentage}>{item.humanAcc}% | {item.aiAcc}%</Text>
-              </View>
-            ))}
-            <Text style={[styles.chartNote, { fontSize: 11, marginTop: sizes.padding }]}>
-              🟠 Orange = Human | 🔵 Blue = AI Model 1
-            </Text>
-          </View>
-        )}
-
-        {/* 5. Disagreement Analysis */}
-        {disagreementAnalysis && (
-          <View style={[styles.card, { marginBottom: sizes.padding, padding: sizes.padding, backgroundColor: "#fff3cd" }]}>
-            <Text style={[styles.cardTitle, { fontSize: sizes.cardTitleFontSize, marginBottom: sizes.padding }]}>
-              ⚠️ Disagreement Analysis
-            </Text>
-            <View style={styles.disagreementBox}>
-              <Text style={styles.disagreementLabel}>Human Correct, AI Wrong</Text>
-              <Text style={[styles.disagreementValue, { color: "#e67e22" }]}>
-                {disagreementAnalysis.humanCorrect}
-              </Text>
-              <Text style={styles.disagreementPercent}>
-                {((disagreementAnalysis.humanCorrect / stats.totalScans) * 100).toFixed(1)}%
+              <Text style={styles.confidenceValue}>
+                {stats.model1AvgConfidence.toFixed(1)}%
               </Text>
             </View>
 
-            <View style={styles.disagreementBox}>
-              <Text style={styles.disagreementLabel}>AI Correct, Human Wrong</Text>
-              <Text style={[styles.disagreementValue, { color: "#3498db" }]}>
-                {disagreementAnalysis.bothAICorrect}
-              </Text>
-              <Text style={styles.disagreementPercent}>
-                {((disagreementAnalysis.bothAICorrect / stats.totalScans) * 100).toFixed(1)}%
-              </Text>
-            </View>
-
-            <View style={styles.disagreementBox}>
-              <Text style={styles.disagreementLabel}>Both Wrong</Text>
-              <Text style={[styles.disagreementValue, { color: "#e74c3c" }]}>
-                {disagreementAnalysis.humanWrong}
-              </Text>
-              <Text style={styles.disagreementPercent}>
-                {((disagreementAnalysis.humanWrong / stats.totalScans) * 100).toFixed(1)}%
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* 6. 14-Day Trends */}
-        {agreementTimeline && agreementTimeline.length > 0 && (
-          <View style={[styles.card, { marginBottom: sizes.padding, padding: sizes.padding }]}>
-            <Text style={[styles.cardTitle, { fontSize: sizes.cardTitleFontSize, marginBottom: sizes.padding }]}>
-              📈 14-Day Trends
-            </Text>
-            {agreementTimeline.map((point, idx) => (
-              <View key={idx} style={styles.trendRow}>
-                <Text style={styles.trendDate}>{point.date}</Text>
-                <View style={styles.trendBars}>
-                  <View style={[styles.trendBar, { width: `${point.human}%`, backgroundColor: "#e67e22" }]} />
-                  <View style={[styles.trendBar, { width: `${point.model1}%`, backgroundColor: "#3498db" }]} />
-                </View>
-                <Text style={styles.trendPercent}>{point.human}%</Text>
+            <View style={styles.confidenceItem}>
+              <Text style={styles.confidenceLabel}>Model 2</Text>
+              <View style={styles.confidenceBarContainer}>
+                <View
+                  style={[
+                    styles.confidenceBar,
+                    {
+                      width: `${stats.model2AvgConfidence}%`,
+                      backgroundColor: COLORS.model2,
+                    },
+                  ]}
+                />
               </View>
-            ))}
+              <Text style={styles.confidenceValue}>
+                {stats.model2AvgConfidence.toFixed(1)}%
+              </Text>
+            </View>
           </View>
-        )}
-
-        {/* Insights */}
-        <View style={[styles.card, { marginBottom: sizes.padding, padding: sizes.padding, backgroundColor: "#e8f5e9" }]}>
-          <Text style={[styles.cardTitle, { fontSize: sizes.cardTitleFontSize, marginBottom: sizes.padding }]}>
-            💡 Statistical Insights
-          </Text>
-
-          <Text style={[styles.insightText, { fontSize: 12, marginBottom: sizes.padding * 0.5 }]}>
-            <Text style={styles.bold}>Kappa ({stats.kappaCoefficient}):</Text>
-            {"\n"}
-            {stats.kappaCoefficient > 0.81
-              ? "✅ Almost perfect human-AI agreement"
-              : stats.kappaCoefficient > 0.61
-              ? "✓ Substantial agreement"
-              : "⚠️ Fair to moderate agreement"}
-          </Text>
-
-          <Text style={[styles.insightText, { fontSize: 12, marginBottom: sizes.padding * 0.5 }]}>
-            <Text style={styles.bold}>Calibration ({stats.confidenceCalibration}):</Text>
-            {"\n"}
-            {stats.confidenceCalibration < 0.1
-              ? "✅ Excellent - High confidence = Correct"
-              : "⚠️ Poor - High confidence ≠ Always correct"}
-          </Text>
-
-          <Text style={[styles.insightText, { fontSize: 12 }]}>
-            <Text style={styles.bold}>Key Finding:</Text>
-            {"\n"}
-            {stats.aiModel1Accuracy > stats.humanAccuracy
-              ? `🤖 AI Model 1 outperforms human by ${(stats.aiModel1Accuracy - stats.humanAccuracy).toFixed(1)}%`
-              : `👤 Humans outperform AI by ${(stats.humanAccuracy - stats.aiModel1Accuracy).toFixed(1)}%`}
-          </Text>
         </View>
 
-        {/* Buttons */}
-        <View style={[styles.buttonContainer, { gap: sizes.padding }]}>
-          <Pressable
-            style={[styles.button, styles.primaryButton]}
-            onPress={() => router.push("/scan")}
-          >
-            <Text style={[styles.buttonText, { fontSize: 14 }]}>📸 Add Scans</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.button, styles.secondaryButton]}
-            onPress={() => router.push("/dashboard")}
-          >
-            <Text style={[styles.buttonText, { fontSize: 14 }]}>← Dashboard</Text>
-          </Pressable>
+        {/* CLASSIFICATION BREAKDOWN */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Top Classifications by Human</Text>
+          {topHumanClassifications.map(([key, count]) => (
+            <View key={key} style={styles.classificationRow}>
+              <Text style={styles.classificationLabel}>
+                {WASTE_TYPE_LABELS[key] || key}
+              </Text>
+              <View style={styles.progressBar}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${(count / stats.totalScans) * 100}%`,
+                      backgroundColor: COLORS.human,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.classificationCount}>{count}</Text>
+            </View>
+          ))}
         </View>
+
+        {/* MODEL 1 BREAKDOWN */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Top Classifications by Model 1</Text>
+          {topModel1Classifications.map(([key, count]) => (
+            <View key={key} style={styles.classificationRow}>
+              <Text style={styles.classificationLabel}>
+                {WASTE_TYPE_LABELS[key] || key}
+              </Text>
+              <View style={styles.progressBar}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${(count / stats.totalScans) * 100}%`,
+                      backgroundColor: COLORS.model1,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.classificationCount}>{count}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* MODEL 2 BREAKDOWN */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Top Classifications by Model 2</Text>
+          {topModel2Classifications.map(([key, count]) => (
+            <View key={key} style={styles.classificationRow}>
+              <Text style={styles.classificationLabel}>
+                {WASTE_TYPE_LABELS[key] || key}
+              </Text>
+              <View style={styles.progressBar}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${(count / stats.totalScans) * 100}%`,
+                      backgroundColor: COLORS.model2,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.classificationCount}>{count}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* DETAILED STATISTICS */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Detailed Statistics</Text>
+          <View style={styles.statRow}>
+            <Text style={styles.statLabel}>Human ↔ Model 1 Agreement:</Text>
+            <Text style={styles.statValue}>
+              {stats.humanModel1Match} / {stats.totalScans} (
+              {((stats.humanModel1Match / stats.totalScans) * 100).toFixed(1)}%)
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statLabel}>Human ↔ Model 2 Agreement:</Text>
+            <Text style={styles.statValue}>
+              {stats.humanModel2Match} / {stats.totalScans} (
+              {((stats.humanModel2Match / stats.totalScans) * 100).toFixed(1)}%)
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statLabel}>Model 1 ↔ Model 2 Agreement:</Text>
+            <Text style={styles.statValue}>
+              {stats.model1Model2Match} / {stats.totalScans} (
+              {((stats.model1Model2Match / stats.totalScans) * 100).toFixed(1)}%)
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statLabel}>All Three Agree:</Text>
+            <Text style={styles.statValue}>
+              {stats.allThreeMatch} / {stats.totalScans} (
+              {((stats.allThreeMatch / stats.totalScans) * 100).toFixed(1)}%)
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statLabel}>Model 1 Avg Confidence:</Text>
+            <Text style={styles.statValue}>
+              {stats.model1AvgConfidence.toFixed(1)}%
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statLabel}>Model 2 Avg Confidence:</Text>
+            <Text style={styles.statValue}>
+              {stats.model2AvgConfidence.toFixed(1)}%
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ height: 30 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -785,69 +533,266 @@ export default function HumanvsAIStatsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f5f5" },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f5f5f5" },
-  loadingText: { marginTop: 12, color: "#666" },
-  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
-  emptyText: { color: "#999", textAlign: "center", marginBottom: 20 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#ddd" },
-  backButton: { paddingVertical: 10, backgroundColor: "#27ae60", borderRadius: 8, justifyContent: "center", alignItems: "center" },
-  backButtonText: { color: "white", fontWeight: "700" },
-  headerTitle: { fontWeight: "bold", color: "#333", textAlign: "center" },
-  scrollContent: {},
-  card: { backgroundColor: "white", borderRadius: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 3 },
-  cardTitle: { fontWeight: "700", color: "#2c3e50" },
-  chartNote: { color: "#999", marginTop: 8, textAlign: "center", fontStyle: "italic" },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+  },
+  loadingText: { marginTop: 10, color: "#666", fontSize: 16 },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyText: { fontSize: 16, color: "#999" },
 
-  // KPI
-  kpiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  kpiBox: { flex: 1, minWidth: 90, padding: 12, backgroundColor: "white", borderRadius: 8, borderWidth: 1, borderColor: "#ddd", alignItems: "center" },
-  kpiLabel: { fontSize: 11, color: "#7f8c8d", marginBottom: 4 },
-  kpiValue: { fontSize: 18, fontWeight: "700" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+  },
+  backButton: {
+    backgroundColor: "#27ae60",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  backButtonText: { color: "#fff", fontWeight: "700" },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontWeight: "700",
+    fontSize: 18,
+    color: "#333",
+  },
 
-  // Matrix
-  matrixRow: { flexDirection: "row", gap: 12 },
-  matrixCell: { flex: 1, padding: 12, backgroundColor: "#f9f9f9", borderRadius: 8, alignItems: "center" },
-  matrixLabel: { fontSize: 11, color: "#666", marginBottom: 6, fontWeight: "600" },
-  matrixValue: { fontSize: 20, fontWeight: "700", marginBottom: 4 },
-  matrixPercent: { fontSize: 10, color: "#999" },
+  scrollContent: { padding: 12 },
+  
+  cardRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  cardSmall: { flex: 1, marginRight: 8 },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#2c3e50",
+    marginBottom: 12,
+  },
+  cardLabel: {
+    fontSize: 12,
+    color: "#7f8c8d",
+    marginBottom: 4,
+  },
+  cardValue: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#27ae60",
+  },
 
-  // Calibration
-  calibrationRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  calibrationLabel: { width: 50, fontSize: 11, fontWeight: "600", color: "#333" },
-  calibrationBar: { flex: 1, height: 10, backgroundColor: "#eee", marginHorizontal: 8, borderRadius: 5, overflow: "hidden" },
-  calibrationFill: { height: "100%", borderRadius: 5 },
-  calibrationText: { width: 50, textAlign: "right", fontSize: 10, color: "#666" },
+  accuracyBreakdown: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+  },
+  breakdownText: {
+    fontSize: 14,
+    color: "#555",
+    marginVertical: 4,
+  },
 
-  // Type
-  typeRow: { flexDirection: "row", alignItems: "center", marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "#eee" },
-  typeLabel: { width: 80 },
-  typeText: { fontSize: 11, fontWeight: "600", color: "#333" },
-  typeCount: { fontSize: 9, color: "#999" },
-  typeBarContainer: { flex: 1, height: 12, flexDirection: "row", marginHorizontal: 8, gap: 1, backgroundColor: "#f0f0f0", borderRadius: 3, overflow: "hidden" },
-  typeBar: { height: "100%" },
-  typePercentage: { width: 55, textAlign: "right", fontSize: 10, color: "#666", fontWeight: "600" },
+  classificationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  classificationLabel: {
+    flex: 1,
+    fontSize: 12,
+    color: "#555",
+    fontWeight: "600",
+  },
+  progressBar: {
+    flex: 2,
+    height: 8,
+    backgroundColor: "#eee",
+    borderRadius: 4,
+    marginHorizontal: 8,
+    overflow: "hidden",
+  },
+  progressFill: { height: "100%", borderRadius: 4 },
+  classificationCount: {
+    width: 30,
+    textAlign: "right",
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#333",
+  },
 
-  // Disagreement
-  disagreementBox: { padding: 10, marginBottom: 10, backgroundColor: "white", borderRadius: 8, borderLeftWidth: 3, borderLeftColor: "#f39c12" },
-  disagreementLabel: { fontSize: 11, color: "#666", marginBottom: 4, fontWeight: "600" },
-  disagreementValue: { fontSize: 16, fontWeight: "700", marginBottom: 2 },
-  disagreementPercent: { fontSize: 10, color: "#999" },
+  statRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  statLabel: {
+    fontSize: 13,
+    color: "#555",
+    fontWeight: "600",
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#27ae60",
+    textAlign: "right",
+  },
 
-  // Trends
-  trendRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  trendDate: { width: 40, fontSize: 9, color: "#999", fontWeight: "600" },
-  trendBars: { flex: 1, height: 6, flexDirection: "row", marginHorizontal: 8, gap: 1 },
-  trendBar: { height: "100%", borderRadius: 1 },
-  trendPercent: { width: 35, textAlign: "right", fontSize: 9, color: "#666", fontWeight: "600" },
+  comparisonGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  comparisonBox: {
+    width: "48%",
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  comparisonLabel: {
+    fontSize: 14,
+    color: "#333",
+    marginBottom: 4,
+  },
+  comparisonValue: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#27ae60",
+  },
+  comparisonPercent: {
+    fontSize: 14,
+    color: "#555",
+    marginTop: 2,
+  },
 
-  // Insights
-  insightText: { color: "#27ae60", lineHeight: 18 },
-  bold: { fontWeight: "700", color: "#2c3e50" },
+  confidenceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  confidenceItem: {
+    flex: 1,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    padding: 12,
+    marginRight: 8,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  confidenceLabel: {
+    fontSize: 14,
+    color: "#333",
+    marginBottom: 4,
+  },
+  confidenceBarContainer: {
+    height: 8,
+    backgroundColor: "#eee",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  confidenceBar: { height: "100%" },
+  confidenceValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#27ae60",
+    textAlign: "right",
+  },
+  // Add to styles object:
 
-  // Buttons
-  buttonContainer: { marginTop: 12 },
-  button: { paddingVertical: 12, borderRadius: 8, alignItems: "center" },
-  primaryButton: { backgroundColor: "#27ae60" },
-  secondaryButton: { backgroundColor: "#3498db" },
-  buttonText: { color: "white", fontWeight: "700" },
+  comparisonGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  comparisonBox: {
+    width: "48%",
+    backgroundColor: "#f9f9f9",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.human,
+    alignItems: "center",
+  },
+  comparisonLabel: {
+    fontSize: 12,
+    color: "#7f8c8d",
+    fontWeight: "600",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  comparisonValue: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#2c3e50",
+    marginBottom: 2,
+  },
+  comparisonPercent: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.match,
+  },
+
+  confidenceRow: {
+    flexDirection: "column",
+  },
+  confidenceItem: {
+    marginBottom: 20,
+  },
+  confidenceLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#555",
+    marginBottom: 6,
+  },
+  confidenceBarContainer: {
+    height: 12,
+    backgroundColor: "#eee",
+    borderRadius: 6,
+    overflow: "hidden",
+    marginBottom: 6,
+  },
+  confidenceBar: {
+    height: "100%",
+    borderRadius: 6,
+  },
+  confidenceValue: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#27ae60",
+  },
 });

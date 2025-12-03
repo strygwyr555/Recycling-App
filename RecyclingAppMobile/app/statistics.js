@@ -79,22 +79,63 @@ export default function StatisticsScreen() {
     try {
       const user = auth.currentUser;
       if (!user) return;
-
-      const scansRef = collection(db, "scan");
-      const q = query(scansRef, where("email", "==", user.email));
-      const querySnapshot = await getDocs(q);
-
-      let totalPoints = 0;
-      let itemTypes = {};
-
-      querySnapshot.docs.forEach((doc) => {
-        const data = doc.data();
-        totalPoints += data.points || 10;
-
-        if (data.biological) {
-          itemTypes[data.biological] = (itemTypes[data.biological] || 0) + 1;
+      // helper: extract a human-friendly label from different doc shapes
+      const extractLabel = (data) => {
+        if (!data) return null;
+        if (data.finalSelection) return data.finalSelection;
+        if (data.final) return data.final;
+        if (data.classification) return data.classification;
+        if (data.aiModel1Prediction) return data.aiModel1Prediction;
+        if (data.aiModel2Prediction) return data.aiModel2Prediction;
+        if (data.results) {
+          if (data.results.mobilenet && data.results.mobilenet.prediction) return data.results.mobilenet.prediction;
+          if (data.results.rexnet && data.results.rexnet.prediction) return data.results.rexnet.prediction;
         }
-      });
+        if (data.prediction) return data.prediction;
+        return null;
+      };
+
+      // normalize label into small key used for composition and emoji mapping
+      const normalizeKey = (label) => {
+        if (!label) return "unknown";
+        const s = String(label).trim().toLowerCase();
+        if (/^e$/.test(s) || /e[-_\s]?waste/.test(s) || /ewaste/.test(s)) return "ewaste";
+        if (s.includes("glass")) return "glass";
+        if (s.includes("plastic")) return "plastic";
+        if (s.includes("paper") || s.includes("cardboard")) return "paper";
+        if (s.includes("battery")) return "battery";
+        if (s.includes("metal")) return "metal";
+        if (s.includes("light") && s.includes("bulb")) return "lightbulb";
+        if (s.includes("organic")) return "organic";
+        if (s.includes("auto") || s.includes("vehicle") || s.includes("car")) return "automobile";
+        const cleaned = s.replace(/[^a-z0-9]/g, "");
+        return cleaned || "other";
+      };
+
+      // combine both collections `scan` and `scans` to match web behavior
+      const collectionsToQuery = ["scan", "scans"];
+      let totalPoints = 0;
+      let totalScans = 0;
+      const itemTypes = {};
+
+      for (const colName of collectionsToQuery) {
+        try {
+          const ref = collection(db, colName);
+          const q = query(ref, where("email", "==", user.email));
+          const snap = await getDocs(q);
+          snap.docs.forEach((doc) => {
+            totalScans += 1;
+            const data = doc.data();
+            totalPoints += data.points || 0;
+
+            const label = extractLabel(data);
+            const key = normalizeKey(label);
+            itemTypes[key] = (itemTypes[key] || 0) + 1;
+          });
+        } catch (err) {
+          console.warn(`Skipping collection ${colName}:`, err.message || err);
+        }
+      }
 
       const composition = Object.entries(itemTypes).map(([type, count]) => ({
         type,
@@ -102,7 +143,7 @@ export default function StatisticsScreen() {
       }));
 
       setStats({
-        totalScans: querySnapshot.size,
+        totalScans,
         totalPoints,
         itemTypes,
       });
@@ -309,7 +350,7 @@ export default function StatisticsScreen() {
             onPress={() => router.push("/history")}
           >
             <Text style={[styles.buttonText, { fontSize: sizes.textFontSize }]}>
-              📜 View Full History
+              View Full History
             </Text>
           </Pressable>
           <Pressable
@@ -317,7 +358,7 @@ export default function StatisticsScreen() {
             onPress={() => router.push("/dashboard")}
           >
             <Text style={[styles.buttonText, { fontSize: sizes.textFontSize }]}>
-              ← Back to Dashboard
+              Back to Dashboard
             </Text>
           </Pressable>
         </View>

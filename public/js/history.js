@@ -1,101 +1,198 @@
 // js/history.js
-import { auth, db } from './firebaseInit.js';
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+import { auth, db } from "./firebaseInit.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
-// Format readable date
-function formatDate(timestamp) {
-  try {
-    const date = new Date(timestamp);
+/* -------------------------------------------------------
+   CLEAN LABEL → normalize names across mobile + web
+------------------------------------------------------- */
+function cleanLabel(label) {
+    if (!label || typeof label !== "string") return "Unknown";
+
+    let res = label
+        .replace(/_/g, " ")              // Replace underscores with spaces
+        .replace(/-/g, " ")              // Replace hyphens with spaces
+        .replace(/\be\s+waste\b/gi, "E-Waste")    // "e waste" → "E-Waste"
+        .replace(/\be\s*-\s*waste\b/gi, "E-Waste")  // "e-waste" → "E-Waste"
+        .replace(/\bwhite\s+glass\b/gi, "White Glass")
+        .replace(/\bgreen\s+glass\b/gi, "Green Glass")
+        .replace(/\bbrown\s+glass\b/gi, "Brown Glass")
+        .replace(/\bcardboard\s+waste\b/gi, "Cardboard Waste")
+        .replace(/\bclothing\s+waste\b/gi, "Clothing Waste")
+        .replace(/\bwaste\b/gi, "Waste")
+        .replace(/\bglass\b/gi, "Glass")
+        .replace(/\borganic\b/gi, "Organic")
+        .replace(/\bbattery\b/gi, "Battery")
+        .replace(/\bmetal\b/gi, "Metal")
+        .replace(/\bpaper\b/gi, "Paper")
+        .replace(/\bplastic\b/gi, "Plastic")
+        .replace(/\btrash\b/gi, "Trash")
+        .trim()
+        .replace(/\b\w/g, c => c.toUpperCase());
+
+    // Fallback: sometimes stored label is a single letter like "E" — treat as E-Waste
+    if (res === "E") return "E-Waste";
+
+    return res;
+}
+
+/* -------------------------------------------------------
+   DATE FORMATTER
+------------------------------------------------------- */
+function formatDate(ts) {
+    if (!ts) return "Unknown";
+
+    let date;
+
+    // Case 1: Firestore Timestamp object (has 'seconds' property)
+    if (typeof ts === "object" && ts.seconds) {
+        date = new Date(ts.seconds * 1000);
+    }
+    // Case 2: Standard Date object
+    else if (ts instanceof Date) {
+        date = ts;
+    }
+    // Case 3: String (ISO or other format)
+    else if (typeof ts === "string") {
+        date = new Date(ts);
+    }
+    // Case 4: Milliseconds timestamp
+    else if (typeof ts === "number") {
+        date = new Date(ts);
+    }
+    else {
+        return "Unknown";
+    }
+
+    if (isNaN(date.getTime())) return "Unknown";
+
     return date.toLocaleString(undefined, {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
     });
-  } catch {
-    return timestamp;
-  }
 }
 
-async function loadHistoryImages(userEmail) {
-  const scansCol = collection(db, 'scans');
-  const scanSnapshot = await getDocs(scansCol);
-  let scanList = scanSnapshot.docs.map(doc => doc.data());
-  scanList = scanList.filter(scan => scan.email === userEmail);
-  scanList = scanList.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+/* -------------------------------------------------------
+   LOAD HISTORY FROM BOTH COLLECTIONS
+------------------------------------------------------- */
+async function loadHistory(email) {
+    const grid = document.getElementById("historyGrid");
+    grid.innerHTML = "<p>Loading...</p>";
 
-  const container = document.getElementById('historyGrid');
-  container.innerHTML = '';
+    // Read both collections so mobile + web both show
+    const scanCol = collection(db, "scan");
+    const scansCol = collection(db, "scans");
 
-  if (scanList.length === 0) {
-    container.innerHTML = '<p class="no-history">No scans found yet. Try scanning or uploading an image!</p>';
-    return;
-  }
+    const snap1 = await getDocs(scanCol);
+    const snap2 = await getDocs(scansCol);
 
-  scanList.forEach(scan => {
-    if (scan.imageUrl) {
-      const card = document.createElement('div');
-      card.className = 'history-card';
+    let scans = [
+        ...snap1.docs.map(d => d.data()),
+        ...snap2.docs.map(d => d.data())
+    ];
 
-      const img = document.createElement('img');
-      img.src = scan.imageUrl;
-      img.alt = 'Scan Image';
-      img.className = 'history-image';
+    scans = scans
+        .filter(s => s.email === email)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-      const info = document.createElement('div');
-      info.className = 'history-info';
+    grid.innerHTML = "";
 
-      const classText = document.createElement('p');
-      classText.innerHTML = `<strong>🧠 Classification:</strong> ${scan.classification || 'Unknown'}`;
-
-      const confidenceText = document.createElement('p');
-      confidenceText.innerHTML = `<strong>Confidence:</strong> ${
-        scan.confidence ? (scan.confidence * 100).toFixed(1) + '%' : 'N/A'
-      }`;
-
-      const binText = document.createElement('p');
-      binText.innerHTML = `<strong>📦 Bin:</strong> ${scan.bin || 'N/A'}`;
-
-      const suggestionText = document.createElement('p');
-      suggestionText.innerHTML = `<strong>💡 Suggestion:</strong> ${scan.suggestion || 'N/A'}`;
-
-      const dateText = document.createElement('p');
-      dateText.innerHTML = `<strong>📅 Date:</strong> ${formatDate(scan.timestamp)}`;
-
-      info.appendChild(classText);
-      info.appendChild(confidenceText);
-      info.appendChild(binText);
-      info.appendChild(suggestionText);
-      info.appendChild(dateText);
-
-      card.appendChild(img);
-      card.appendChild(info);
-      container.appendChild(card);
+    if (scans.length === 0) {
+        grid.innerHTML = `
+            <p class="no-history">
+                No scans yet. Start scanning to see your history!
+            </p>`;
+        return;
     }
-  });
+
+    scans.forEach(scan => {
+        const img = scan.imageUrl || scan.image || null;
+
+        // Final recommendation - try multiple possible fields
+        const final = cleanLabel(
+            scan.finalSelection ||
+            scan.classification ||
+            scan.result ||
+            "Unknown"
+        );
+
+        // User selection
+        const userSel = cleanLabel(scan.userSelection || "Unknown");
+
+        // Model 1 prediction - check nested results object first
+        let model1Pred = "Unknown";
+        let model1Conf = "N/A";
+        
+        if (scan.results?.mobilenet?.prediction) {
+            model1Pred = cleanLabel(scan.results.mobilenet.prediction);
+            model1Conf = scan.results.mobilenet.confidence 
+                ? (scan.results.mobilenet.confidence * 100).toFixed(0) + "%" 
+                : "N/A";
+        } else if (scan.aiModel1Prediction) {
+            model1Pred = cleanLabel(scan.aiModel1Prediction);
+            model1Conf = scan.aiModel1Confidence
+                ? (scan.aiModel1Confidence * 100).toFixed(0) + "%"
+                : "N/A";
+        }
+
+        // Model 2 prediction - check nested results object first
+        let model2Pred = "Unknown";
+        let model2Conf = "N/A";
+        
+        if (scan.results?.rexnet?.prediction) {
+            model2Pred = cleanLabel(scan.results.rexnet.prediction);
+            model2Conf = scan.results.rexnet.confidence 
+                ? (scan.results.rexnet.confidence * 100).toFixed(0) + "%" 
+                : "N/A";
+        } else if (scan.aiModel2Prediction) {
+            model2Pred = cleanLabel(scan.aiModel2Prediction);
+            model2Conf = scan.aiModel2Confidence
+                ? (scan.aiModel2Confidence * 100).toFixed(0) + "%"
+                : "N/A";
+        }
+
+        // Recommendation strength
+        const strength = scan.recommendationStrength || 
+                        scan.ensembleMetrics?.recommendationStrength || 
+                        "N/A";
+
+        const card = document.createElement("div");
+        card.className = "history-card";
+
+        card.innerHTML = `
+            ${img ? `<img src="${img}" class="history-image" alt="Scan">` : '<div class="history-image-placeholder">No Image</div>'}
+
+            <div class="history-info">
+                <p class="final-title">${final}</p>
+
+                <p class="info-item"><strong>You:</strong> ${userSel}</p>
+
+                <p class="info-item"><strong>Model 1:</strong> ${model1Pred} <span style="opacity:.7;">(${model1Conf})</span></p>
+
+                <p class="info-item"><strong>Model 2:</strong> ${model2Pred} <span style="opacity:.7;">(${model2Conf})</span></p>
+
+                <p class="info-item"><strong>Strength:</strong> ${strength}</p>
+
+                <p class="info-item"><strong>Date:</strong> ${formatDate(scan.timestamp)}</p>
+            </div>
+        `;
+
+        grid.appendChild(card);
+    });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      loadHistoryImages(user.email);
-    } else {
-      window.location.href = "login.html";
-    }
-  });
-
-  const logoutBtn = document.getElementById('logoutBtn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async () => {
-      try {
-        await signOut(auth);
-        window.location.href = "login.html";
-      } catch (err) {
-        console.error("Logout failed:", err);
-      }
+/* -------------------------------------------------------
+   AUTH CHECK
+------------------------------------------------------- */
+document.addEventListener("DOMContentLoaded", () => {
+    onAuthStateChanged(auth, user => {
+        if (!user) {
+            window.location.href = "login.html";
+            return;
+        }
+        loadHistory(user.email);
     });
-  }
 });
