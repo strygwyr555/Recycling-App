@@ -1,8 +1,3 @@
-/**
- * Confidence-Weighted Consensus Algorithm
- * Combines dual AI model predictions with human selection
- */
-
 export const ENSEMBLE_REASONS = {
   ALL_AGREE: "ALL_AGREE",
   MODELS_AGREE_WITH_HUMAN: "MODELS_AGREE_WITH_HUMAN",
