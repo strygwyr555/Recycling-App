@@ -7,8 +7,7 @@
     <title>Scan Item - Recycling Assistant</title>
 
     <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
 <body>
@@ -75,7 +74,7 @@
                     <div class="recommendation-box">
                         <div class="recommendation-label">FINAL RECOMMENDATION</div>
                         <div class="recommendation-value" id="finalPredictionLabel"></div>
-                        
+
                         <div class="strength-container">
                             <div class="strength-label">Recommendation Strength</div>
                             <div class="strength-bar">
@@ -154,7 +153,10 @@
 
                 const userEmailSpan = document.getElementById("userEmail");
                 auth.onAuthStateChanged(user => {
-                    if (user) userEmailSpan.textContent = user.email;
+                    if (user && userEmailSpan) {
+                        userEmailSpan.textContent = user.email;
+                    }
+
                 });
 
                 const logoutBtn = document.getElementById("logoutBtn");
