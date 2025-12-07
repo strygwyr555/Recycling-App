@@ -90,34 +90,9 @@ def base64_to_bytes(data_url):
 
 @app.post("/predict")
 def predict():
-    try:
-        data = request.get_json()
+    print("RECEIVED PREDICT POST OK")
+    return jsonify({"status": "ok"})
 
-        if "image" not in data:
-            return jsonify({"error": "No image provided"}), 400
-
-        img_bytes = io.BytesIO(base64_to_bytes(data["image"]))
-        img = Image.open(img_bytes).convert("RGB")
-        img_tensor = transform(img).unsqueeze(0)
-
-        # Run both models
-        results = {}
-        for name, model in models.items():
-            with torch.no_grad():
-                logits = model(img_tensor)
-                probs = torch.softmax(logits, dim=1)
-                conf, idx = torch.max(probs, 1)
-
-            results[name] = {
-                "prediction": class_names[idx.item()],
-                "confidence": float(conf.item())
-            }
-
-        return jsonify(results)
-
-    except Exception as e:
-        print("Prediction Error:", e)
-        return jsonify({"error": str(e)}), 500
 
 # Run normally (Render will execute this)
 if __name__ == "__main__":
