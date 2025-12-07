@@ -4,8 +4,8 @@ services:
     env: python
     plan: free
 
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --timeout 0
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: gunicorn backend.app:app --chdir backend --timeout 0
 
     envVars:
       - key: PYTHON_VERSION
@@ -13,5 +13,5 @@ services:
 
     disk:
       name: model_files
-      mountPath: /opt/render/project/src
+      mountPath: /opt/render/project/src/backend
       sizeGB: 2
