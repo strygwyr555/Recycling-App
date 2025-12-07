@@ -37,11 +37,7 @@ def log_request_info():
     size = request.content_length or 0
     app.logger.info(f"Incoming request: {request.method} {request.path} Content-Length={size}")
 
-# Respond to preflight OPTIONS for /predict explicitly
-@app.options('/predict')
-def predict_options():
-    # Flask-CORS will add the appropriate headers; return 204 No Content
-    return ('', 204)
+
 
 # Class names
 class_names = [
