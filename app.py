@@ -9,6 +9,7 @@ Original file is located at
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import logging
 import torch
 from torchvision import transforms as T
 from PIL import Image
@@ -18,7 +19,29 @@ import base64
 import os
 
 app = Flask(__name__)
-CORS(app)
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+app.logger.setLevel(logging.INFO)
+
+# Enable CORS with explicit settings so browsers get proper preflight responses
+CORS(app,
+     resources={r"/*": {"origins": "*"}},
+     supports_credentials=True,
+     allow_headers=["Content-Type", "Authorization", "Cache-Control", "X-Requested-With", "Accept"],
+     methods=["GET", "POST", "OPTIONS"])
+
+# Log incoming requests (method, path, size)
+@app.before_request
+def log_request_info():
+    size = request.content_length or 0
+    app.logger.info(f"Incoming request: {request.method} {request.path} Content-Length={size}")
+
+# Respond to preflight OPTIONS for /predict explicitly
+@app.options('/predict')
+def predict_options():
+    # Flask-CORS will add the appropriate headers; return 204 No Content
+    return ('', 204)
 
 # Class names
 class_names = [
