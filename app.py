@@ -46,10 +46,12 @@ transform = T.Compose([
 
 # Load model function
 def load_model(model_name, weight_path):
+    print(f"🔄 Loading model: {model_name} from {weight_path}")
     model = timm.create_model(model_name, pretrained=False, num_classes=len(class_names))
     state = torch.load(weight_path, map_location="cpu")
     model.load_state_dict(state)
     model.eval()
+    print(f"Loaded model: {model_name}")
     return model
 
 # Load models once
