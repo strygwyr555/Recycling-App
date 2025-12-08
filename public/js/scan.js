@@ -9,7 +9,7 @@ import {
 } from './ensembleClassifier.js';
 
 // Update this with your ngrok public URL or local Flask URL
-const API_URL = "https://recycling-app-2jju.onrender.com/predict";
+const API_URL = "https://recycling-ai-backend-production.up.railway.app/predict";
 
 // Cloudinary config (same as mobile)
 const CLOUDINARY_CLOUD = "dtmpkhm3z";
