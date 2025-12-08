@@ -17,7 +17,7 @@ import {
 import { auth } from "./firebaseInit";
 import { ensembleClassify } from "./utils/ensembleClassifier";
 
-const AI_API_URL = "https://recycling-app-2jju.onrender.com/predict";;
+const AI_API_URL = "https://recycling-ai-backend-production.up.railway.app/predict";;
 const CLOUDINARY_CLOUD = "dtmpkhm3z";
 const UPLOAD_PRESET = "recycleApp";
 
