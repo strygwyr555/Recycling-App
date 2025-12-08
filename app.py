@@ -83,17 +83,27 @@ def predict():
         if "image" not in data:
             return jsonify({"error": "No image provided"}), 400
 
-        # Fast Base64 decode
+        # Fast decode
         img_bytes = io.BytesIO(base64_to_bytes(data["image"]))
         img = Image.open(img_bytes).convert("RGB")
 
-        # ⚡ FAST PREPROCESSING (no normalize)
+        # Resize to 224x224 (same as training)
         img = img.resize((224, 224), Image.BILINEAR)
-        img_tensor = T.ToTensor()(img).unsqueeze(0)
+
+        # Convert to tensor
+        img_tensor = T.ToTensor()(img)
+
+        # *** MOST IMPORTANT ***
+        img_tensor = T.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225]
+        )(img_tensor)
+
+        # Add batch dim
+        img_tensor = img_tensor.unsqueeze(0)
 
         results = {}
 
-        # Run both models (Level 1 optimization uses inference_mode)
         for name, model in models.items():
             with torch.inference_mode():
                 logits = model(img_tensor)
@@ -110,6 +120,7 @@ def predict():
     except Exception as e:
         print("Prediction Error:", e)
         return jsonify({"error": str(e)}), 500
+
 
 # Run locally (Railway uses Gunicorn)
 if __name__ == "__main__":
